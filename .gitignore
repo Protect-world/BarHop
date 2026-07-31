@@ -1,0 +1,46 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 日志
+server/logs/
+*.log
+
+# 上传文件
+server/uploads/
+!server/uploads/.gitkeep
+
+# 数据库数据
+mysql_data/
+redis_data/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# SSL 证书
+ssl/
+*.pem
+*.key
+
+# Docker
+docker-compose.override.yml
+
+# 临时文件
+tmp/
+temp/
+*.tmp

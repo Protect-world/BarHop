@@ -1,0 +1,20 @@
+var format = {
+  distance: function(distance) {
+    if (!distance) return '0m';
+    if (distance < 1000) {
+      return distance + 'm';
+    }
+    return (distance / 1000).toFixed(1) + 'km';
+  },
+  
+  rating: function(rating) {
+    if (!rating) return '★ 0.0';
+    return '★ ' + rating.toFixed(1);
+  },
+  
+  fallback: function(value, defaultValue) {
+    return value || defaultValue;
+  }
+};
+
+module.exports = format;

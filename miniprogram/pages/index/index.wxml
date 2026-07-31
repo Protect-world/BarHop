@@ -1,0 +1,221 @@
+<view class="page-container">
+  <view class="age-modal" wx:if="{{showAgeModal}}">
+    <view class="age-modal-content">
+      <view class="age-icon">🍻</view>
+      <view class="age-title">年龄确认</view>
+      <view class="age-desc">为了保护未成年人，您需要年满18岁才能使用 BarHop</view>
+      <view class="age-warning">未满18岁禁止饮酒</view>
+      <view class="age-buttons">
+        <button class="btn-secondary" bindtap="handleAgeReject">未满18岁</button>
+        <button class="btn-primary" bindtap="handleAgeConfirm">我已满18岁</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="main-content" wx:if="{{!showAgeModal}}">
+    <!-- 固定区域：用户栏 + 搜索栏 + 分类 + 地图 -->
+    <view class="fixed-header">
+      <!-- 用户栏 -->
+      <view class="user-bar" wx:if="{{userInfo && !isLoggingIn && pageVisible}}">
+        <view 
+          class="user-avatar-btn" 
+          bindtap="onChooseAvatarTap"
+        >
+          <image 
+            class="user-avatar" 
+            src="{{userInfo.avatar || '/images/home.png'}}" 
+            mode="aspectFill"
+          />
+        </view>
+        <view class="user-info">
+          <input 
+            class="user-nickname" 
+            value="{{userInfo.nickname}}" 
+            bindinput="onNicknameChange"
+            placeholder="点击设置昵称"
+            placeholder-class="user-nickname-placeholder"
+          />
+          <text class="user-status">{{userInfo.signature || '🍻 发现附近的好酒'}}</text>
+        </view>
+        <view class="user-edit" bindtap="goToProfile">
+          <text>✏️</text>
+        </view>
+      </view>
+
+      <!-- 登录加载中 -->
+      <view class="user-bar user-bar-loading" wx:if="{{isLoggingIn}}">
+        <view class="user-avatar-placeholder"></view>
+        <view class="user-info">
+          <text class="user-nickname-placeholder">登录中...</text>
+        </view>
+      </view>
+
+      <!-- 搜索栏 -->
+      <view class="search-bar">
+        <view class="search-input-wrap">
+          <text class="search-icon">🔍</text>
+          <input 
+            class="search-input" 
+            placeholder="搜索酒馆" 
+            value="{{searchKeyword}}"
+            bindinput="onSearchInput"
+            bindconfirm="onSearch"
+            bindfocus="onSearchFocus"
+            bindblur="onSearchBlur"
+          />
+          <text class="search-clear" wx:if="{{searchKeyword}}" bindtap="onSearchClear">✕</text>
+        </view>
+
+        <!-- 搜索历史下拉 -->
+        <view class="search-history-panel" wx:if="{{showHistory}}">
+          <view class="history-header">
+            <text class="history-title">{{searchKeyword ? '搜索建议' : '搜索历史'}}</text>
+            <text class="history-clear" catchtap="onHistoryClear" wx:if="{{!searchKeyword && searchHistory.length > 0}}">清空</text>
+          </view>
+          <block wx:if="{{filteredHistory.length > 0}}">
+            <scroll-view scroll-y class="history-list">
+              <view 
+                class="history-item" 
+                wx:for="{{filteredHistory}}" 
+                wx:key="keyword"
+              >
+                <view class="history-item-left" catchtap="onHistoryTap" data-keyword="{{item.keyword}}">
+                  <text class="history-icon">🕐</text>
+                  <text class="history-keyword">{{item.keyword}}</text>
+                </view>
+                <view class="history-item-right">
+                  <text class="history-time">{{item.timeText}}</text>
+                  <text class="history-delete" catchtap="onHistoryDelete" data-keyword="{{item.keyword}}">✕</text>
+                </view>
+              </view>
+            </scroll-view>
+          </block>
+          <view class="history-empty" wx:else>
+            <text class="history-empty-icon">🔍</text>
+            <text class="empty-text">{{searchKeyword ? '暂无匹配的搜索记录' : '暂无搜索记录'}}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 分类筛选 -->
+      <view class="category-filter">
+        <view 
+          class="filter-item {{selectedCategory === '' ? 'active' : ''}}" 
+          bindtap="onCategoryChange" 
+          data-type=""
+        >全部</view>
+        <view 
+          class="filter-item {{selectedCategory === '精酿吧' ? 'active' : ''}}" 
+          bindtap="onCategoryChange" 
+          data-type="精酿吧"
+        >精酿吧</view>
+        <view 
+          class="filter-item {{selectedCategory === '鸡尾酒吧' ? 'active' : ''}}" 
+          bindtap="onCategoryChange" 
+          data-type="鸡尾酒吧"
+        >鸡尾酒吧</view>
+        <view 
+          class="filter-item {{selectedCategory === '清吧' ? 'active' : ''}}" 
+          bindtap="onCategoryChange" 
+          data-type="清吧"
+        >清吧</view>
+      </view>
+
+      <!-- 地图 -->
+      <view class="map-container">
+        <map 
+          id="map"
+          class="map"
+          longitude="{{userLocationLongitude}}"
+          latitude="{{userLocationLatitude}}"
+          scale="13"
+          markers="{{markers}}"
+          bindmarkertap="onMarkerClick"
+          bindcallouttap="onCalloutTap"
+          show-location="{{false}}"
+          style="width: 100%; height: 500rpx;"
+        />
+        <view class="location-btn" bindtap="getUserLocation">
+          <text>📍</text>
+        </view>
+        <view class="choose-location-btn" bindtap="chooseLocationManually">
+          <text>🗺️</text>
+        </view>
+      </view>
+    </view>
+
+    <!-- 滚动区域：酒吧列表 -->
+    <scroll-view 
+      class="list-scroll" 
+      scroll-y 
+      wx:if="{{!showAgeModal}}"
+      bindscrolltolower="loadMoreBars"
+      lower-threshold="100"
+      scroll-into-view="{{scrollToBarId}}"
+      scroll-with-animation="{{true}}"
+      refresher-enabled="{{true}}"
+      refresher-triggered="{{refreshing}}"
+      bindrefresherrefresh="onRefresh"
+    >
+      <view class="list-container">
+        <view class="list-header">
+          <view class="list-title-wrap">
+            <text class="list-title">附近酒馆</text>
+            <text class="list-count">{{allBars.length}} 家</text>
+          </view>
+          <view class="sort-btn" bindtap="onSortChange" data-type="{{sortType === 'distance' ? 'rating' : 'distance'}}">
+            <text>{{sortType === 'distance' ? '⭐ 评分' : '📍 距离'}}</text>
+          </view>
+        </view>
+        
+        <block wx:if="{{displayBars.length > 0}}">
+          <view 
+            id="bar-{{index}}"
+            class="bar-card {{activeBarIndex === index ? 'bar-card-active' : ''}}" 
+            wx:for="{{displayBars}}" 
+            wx:key="id" 
+            bindtap="goToDetail"
+            data-id="{{item.id}}"
+            hover-class="bar-card-hover"
+          >
+            <image 
+              class="bar-image" 
+              src="{{item.photos[0]}}"
+              mode="aspectFill"
+              binderror="onImageError"
+              data-index="{{index}}"
+            />
+            <view class="bar-info">
+              <view class="bar-name">{{item.name}}</view>
+              <view class="bar-address">{{item.address}}</view>
+              <view class="bar-meta">
+                <text class="bar-tag">{{item.tags}}</text>
+                <text class="bar-rating">⭐ {{item.avg_rating}}</text>
+                <text class="bar-distance">{{item.distance}}m</text>
+              </view>
+            </view>
+            <view class="bar-arrow">›</view>
+          </view>
+        </block>
+        
+        <view class="empty-state" wx:elif="{{!loading}}">
+          <view class="empty-icon">🍺</view>
+          <view class="empty-title">附近暂无酒吧</view>
+          <view class="empty-desc">换个位置或调整筛选条件试试</view>
+        </view>
+
+        <view class="loading-more" wx:if="{{loading}}">
+          <view class="loading-spinner"></view>
+          <text>加载中...</text>
+        </view>
+        
+        <view class="loading-more" wx:if="{{isLoadingMore}}">
+          <view class="loading-spinner"></view>
+          <text>加载更多...</text>
+        </view>
+        
+        <view class="list-bottom-tip" wx:if="{{displayBars.length > 0 && displayedCount >= allBars.length && displayedCount >= 20}}">— 已经到底啦~ —</view>
+      </view>
+    </scroll-view>
+  </view>
+</view>

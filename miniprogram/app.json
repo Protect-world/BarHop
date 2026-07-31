@@ -1,0 +1,42 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/detail/detail",
+    "pages/favorites/favorites",
+    "pages/review/review",
+    "pages/profile/profile"
+  ],
+  "permission": {
+    "scope.userLocation": {
+      "desc": "BarHop需要获取您的位置，为您寻找附近的微醺好去处"
+    }
+  },
+  "requiredPrivateInfos": ["getLocation", "chooseLocation"],
+  "window": {
+    "navigationBarBackgroundColor": "#1A1A2E",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "BarHop",
+    "backgroundColor": "#16213E",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#E94560",
+    "backgroundColor": "#1A1A2E",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "发现",
+        "iconPath": "images/home.png",
+        "selectedIconPath": "images/home_active.png"
+      },
+      {
+        "pagePath": "pages/favorites/favorites",
+        "text": "收藏",
+        "iconPath": "images/favorite.png",
+        "selectedIconPath": "images/favorite_active.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

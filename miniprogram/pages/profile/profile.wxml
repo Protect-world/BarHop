@@ -1,0 +1,47 @@
+<view class="profile-page">
+  <view class="avatar-section">
+    <view class="avatar-btn" bindtap="onChooseAvatarTap">
+      <image class="avatar" src="{{avatar || '/images/home.png'}}" mode="aspectFill" />
+      <view class="avatar-edit">
+        <text class="edit-icon">📷</text>
+      </view>
+    </view>
+    <text class="avatar-tip">点击更换头像</text>
+  </view>
+
+  <view class="form-section">
+    <view class="form-item">
+      <text class="form-label">昵称</text>
+      <input 
+        class="form-input" 
+        value="{{nickname}}" 
+        bindinput="onNicknameInput"
+        maxlength="20"
+        placeholder="输入昵称"
+        placeholder-class="placeholder"
+      />
+    </view>
+
+    <view class="form-item">
+      <text class="form-label">个性签名</text>
+      <input 
+        class="form-input" 
+        value="{{signature}}" 
+        bindinput="onSignatureInput"
+        maxlength="50"
+        placeholder="介绍一下自己吧~"
+        placeholder-class="placeholder"
+      />
+    </view>
+  </view>
+
+  <view class="action-section">
+    <button 
+      class="btn-primary" 
+      bindtap="onSave"
+      loading="{{loading}}"
+      disabled="{{loading}}"
+    >保存修改</button>
+    <button class="btn-secondary" bindtap="onReset">重置</button>
+  </view>
+</view>

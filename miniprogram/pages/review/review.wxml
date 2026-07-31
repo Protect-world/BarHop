@@ -1,0 +1,50 @@
+<view class="container">
+  <view class="bar-info">
+    <image class="bar-image" src="{{barImage}}" mode="aspectFill" />
+    <view class="bar-name">{{bar.name}}</view>
+  </view>
+
+  <view class="rating-section">
+    <view class="section-title">打分</view>
+    <view class="rating-stars">
+      <text 
+        class="star {{selectedRating >= item ? 'active' : ''}}" 
+        wx:for="{{[1,2,3,4,5]}}" 
+        wx:key="*this"
+        bindtap="selectRating"
+        data-rating="{{item}}"
+      >★</text>
+    </view>
+    <text class="rating-text">{{ratingText}}</text>
+  </view>
+
+  <view class="content-section">
+    <view class="section-title">评价内容</view>
+    <textarea 
+      class="content-input" 
+      placeholder="分享你的酒吧体验..." 
+      value="{{content}}"
+      bindinput="onContentInput"
+      maxlength="500"
+    />
+    <text class="char-count">{{content.length}}/500</text>
+  </view>
+
+  <view class="image-section">
+    <view class="section-title">添加图片（选填）</view>
+    <view class="image-list">
+      <view class="image-item" wx:for="{{images}}" wx:key="*this">
+        <image src="{{item}}" mode="aspectFill" bindtap="previewImage" data-index="{{index}}" />
+        <view class="delete-btn" catchtap="deleteImage" data-index="{{index}}">×</view>
+      </view>
+      <view class="add-image" wx:if="{{images.length < 9}}" bindtap="chooseImage">
+        <text class="add-icon">+</text>
+        <text class="add-text">添加图片</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="submit-section">
+    <button class="submit-btn {{selectedRating > 0 ? '' : 'disabled'}}" bindtap="submitReview">提交评价</button>
+  </view>
+</view>

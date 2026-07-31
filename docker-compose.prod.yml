@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: barhop-mysql
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-barhop_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-barhop}
+      MYSQL_USER: ${MYSQL_USER:-barhop_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-barhop_pass}
+      TZ: Asia/Shanghai
+      MYSQL_INITDB_SKIP_TZINFO: 1
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-character-set-client-handshake
+    networks:
+      - barhop-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: barhop-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-barhop_redis}
+    networks:
+      - barhop-network
+
+  # Node.js 后端
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: barhop-server
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${MYSQL_USER:-barhop_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-barhop_pass}
+      - DB_NAME=${MYSQL_DATABASE:-barhop}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-barhop_redis}
+      - JWT_SECRET=${JWT_SECRET:-barhop_jwt_secret_2026}
+      - WECHAT_APPID=${WECHAT_APPID:-wx_your_appid}
+      - WECHAT_SECRET=${WECHAT_SECRET:-wx_your_secret}
+      - AMAP_KEY=${AMAP_KEY:-your_amap_key}
+      - SERVER_BASE_URL=${SERVER_BASE_URL:-http://localhost:3000}
+    volumes:
+      - uploads_data:/app/uploads
+      - ./server/logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - barhop-network
+
+  # Nginx 反向代理
+  nginx:
+    image: nginx:alpine
+    container_name: barhop-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./server/uploads:/var/www/uploads
+      - ssl_data:/etc/nginx/ssl
+    restart: unless-stopped
+    depends_on:
+      - server
+    networks:
+      - barhop-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  uploads_data:
+  ssl_data:
+
+networks:
+  barhop-network:
+    driver: bridge

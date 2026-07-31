@@ -1,0 +1,193 @@
+<view class="detail-container">
+  <view class="detail-header">
+    <image 
+      class="header-bg" 
+      src="{{headerBg}}"
+      mode="aspectFill"
+      binderror="onImageError"
+    />
+    <view class="back-btn" bindtap="goBack">
+      <text class="back-icon">‹</text>
+    </view>
+    <view class="header-overlay">
+      <view class="bar-title">{{barName}}</view>
+      <view class="bar-tags-row">
+        <text class="bar-tags">{{barTags}}</text>
+      </view>
+    </view>
+  </view>
+
+  <scroll-view class="detail-scroll" scroll-y>
+    <view class="detail-content">
+      <!-- 评分对比区域 -->
+      <view class="rating-section">
+        <view class="rating-comparison">
+          <!-- 高德评分 -->
+          <view class="rating-item">
+            <view class="rating-label">
+              <text class="label-icon">⭐</text>
+              <text class="label-text">高德评分</text>
+              <text class="label-source">第三方</text>
+            </view>
+            <view class="rating-value">
+              <text class="rating-num">{{barRating}}</text>
+            </view>
+          </view>
+          
+          <view class="rating-divider"></view>
+          
+          <!-- 用户评分 -->
+          <view class="rating-item">
+            <view class="rating-label">
+              <text class="label-icon">👥</text>
+              <text class="label-text">用户评分</text>
+              <text class="label-source">真实反馈</text>
+            </view>
+            <view class="rating-value">
+              <text class="rating-num">{{userRatingDisplay}}</text>
+              <text class="rating-count" wx:if="{{userRatingCount > 0}}">· {{userRatingCount}}条</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 评分分布 -->
+        <view class="rating-distribution" wx:if="{{userRatingCount > 0}}">
+          <view class="distribution-title">评分分布</view>
+          <view class="distribution-list">
+            <view class="distribution-item">
+              <text class="dist-label">5星</text>
+              <view class="dist-bar">
+                <view class="dist-fill" style="width: {{dist5}}%"></view>
+              </view>
+              <text class="dist-percent">{{dist5}}%</text>
+            </view>
+            <view class="distribution-item">
+              <text class="dist-label">4星</text>
+              <view class="dist-bar">
+                <view class="dist-fill" style="width: {{dist4}}%"></view>
+              </view>
+              <text class="dist-percent">{{dist4}}%</text>
+            </view>
+            <view class="distribution-item">
+              <text class="dist-label">3星</text>
+              <view class="dist-bar">
+                <view class="dist-fill" style="width: {{dist3}}%"></view>
+              </view>
+              <text class="dist-percent">{{dist3}}%</text>
+            </view>
+            <view class="distribution-item">
+              <text class="dist-label">2星</text>
+              <view class="dist-bar">
+                <view class="dist-fill" style="width: {{dist2}}%"></view>
+              </view>
+              <text class="dist-percent">{{dist2}}%</text>
+            </view>
+            <view class="distribution-item">
+              <text class="dist-label">1星</text>
+              <view class="dist-bar">
+                <view class="dist-fill" style="width: {{dist1}}%"></view>
+              </view>
+              <text class="dist-percent">{{dist1}}%</text>
+            </view>
+          </view>
+        </view>
+
+        <!-- 我的评价 -->
+        <view class="my-review" wx:if="{{myReview}}">
+          <view class="my-review-header">我的评价</view>
+          <view class="my-review-content">
+            <view class="my-review-rating">
+              <text>★ {{myReview.rating}}</text>
+            </view>
+            <view class="my-review-text" wx:if="{{myReview.content}}">{{myReview.content}}</view>
+            <view class="my-review-time">{{myReview.created_at}}</view>
+          </view>
+          <view class="my-review-edit" bindtap="goReview">修改评价</view>
+        </view>
+      </view>
+
+      <!-- 基本信息 -->
+      <view class="info-section">
+        <view class="section-title">📍 地址</view>
+        <text class="section-text">{{barAddress}}</text>
+      </view>
+
+      <view class="info-section">
+        <view class="section-title">⏰ 营业时间</view>
+        <text class="section-text">{{barHours}}</text>
+      </view>
+
+      <view class="info-section">
+        <view class="section-title">📞 电话</view>
+        <text class="section-text phone" bindtap="makeCall">{{barPhone}}</text>
+      </view>
+
+      <!-- 照片区域 -->
+      <view class="photos-section">
+        <view class="section-title">📷 店内环境</view>
+        <view class="photos-grid">
+          <image 
+            wx:for="{{barPhotos}}" 
+            wx:key="index"
+            class="photo-item"
+            src="{{item}}"
+            mode="aspectFill"
+            bindtap="previewPhoto"
+            binderror="onImageError"
+            data-index="{{index}}"
+          />
+          <view wx:if="{{barPhotos.length === 0}}" class="no-photos">
+            <text>暂无照片</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 用户评价列表 -->
+      <view class="reviews-section" wx:if="{{totalReviews > 0}}">
+        <view class="section-title">💬 全部评价 ({{totalReviews}}条)</view>
+        <view class="review-item" wx:for="{{reviews}}" wx:key="id" wx:for-item="review">
+          <view class="review-header">
+            <text class="review-user">{{review.user.nickname}}</text>
+            <text class="review-rating">★ {{review.rating}}</text>
+            <view class="review-delete" wx:if="{{review.can_delete}}" bindtap="deleteReview" data-id="{{review.id}}" data-userid="{{review.user_id}}">删除</view>
+          </view>
+          <text class="review-content" wx:if="{{review.content}}">{{review.content}}</text>
+          <view class="review-images" wx:if="{{review.images && review.images.length > 0}}">
+            <image 
+              wx:for="{{review.images}}" 
+              wx:for-item="img"
+              wx:key="*this"
+              src="{{img}}" 
+              mode="aspectFill"
+              bindtap="previewReviewImage"
+              data-urls="{{review.images}}"
+              data-current="{{img}}"
+            />
+          </view>
+          <text class="review-time">{{review.created_at}}</text>
+        </view>
+      </view>
+
+      <view class="reviews-empty" wx:if="{{userRatingCount === 0}}">
+        <view class="empty-icon">🍻</view>
+        <view class="empty-text">还没有用户评价</view>
+        <view class="empty-tip">来成为第一个评价的人吧！</view>
+      </view>
+
+      <view class="bottom-placeholder"></view>
+    </view>
+  </scroll-view>
+
+  <view class="detail-footer">
+    <view class="footer-btn favorite {{isFavorite ? 'active' : ''}}" bindtap="toggleFavorite">
+      <text>{{isFavorite ? '❤️' : '🤍'}}</text>
+    </view>
+    <view class="footer-btn secondary" bindtap="goReview">✏️ 评价</view>
+    <view class="footer-btn primary" bindtap="openLocation">📍 导航</view>
+  </view>
+
+  <view class="loading-overlay" wx:if="{{loading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+</view>
