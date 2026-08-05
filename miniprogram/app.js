@@ -73,33 +73,31 @@ App({
 
   sendCodeToBackend: function (code) {
     return new Promise((resolve, reject) => {
-      wx.request({
-        url: 'http://localhost:3000/api/users/login',
-        method: 'POST',
-        data: { code },
-        header: { 'Content-Type': 'application/json' },
-        success: (res) => {
-          if (res.data && res.data.code === 0 && res.data.data) {
-            const { token, user } = res.data.data;
+      api.login(code).then(res => {
+        if (res.data) {
+          const { token, user } = res.data;
+          if (token && user) {
             this.globalData.token = token;
             this.globalData.userInfo = user;
             wx.setStorageSync('token', token);
             wx.setStorageSync('userInfo', user);
             console.log('[Login] 登录成功, 用户:', user.nickname);
             resolve(user);
-          } else if (res.data && res.data.code === -1 && res.data.data && res.data.data.mock) {
-            const mockUser = res.data.data.user;
+          } else if (res.data.mock) {
+            // 后端返回模拟用户
+            const mockUser = res.data.user;
             this.globalData.userInfo = mockUser;
             wx.setStorageSync('userInfo', mockUser);
             console.log('[Login] 模拟登录成功, 用户:', mockUser.nickname);
             resolve(mockUser);
           } else {
-            reject(res.data);
+            reject(res);
           }
-        },
-        fail: (err) => {
-          reject(err);
+        } else {
+          reject(res);
         }
+      }).catch(err => {
+        reject(err);
       });
     });
   },

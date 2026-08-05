@@ -34,7 +34,8 @@ async function getPool() {
 const db = {
   async query(sql, params = []) {
     const pool = await getPool();
-    const [rows] = await pool.execute(sql, params);
+    // 使用 query 而非 execute，支持 LIMIT ? 等动态参数
+    const [rows] = await pool.query(sql, params);
     return rows;
   },
 

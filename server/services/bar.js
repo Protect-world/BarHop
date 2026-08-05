@@ -32,10 +32,11 @@ const barService = {
       params.push(searchTerm, searchTerm, searchTerm);
     }
 
-    // 添加类型筛选
+    // 添加类型筛选（同时匹配 tags 和 category 字段）
+    // tags 存储的是细分类型（精酿吧/鸡尾酒吧/清吧），category 是高德大类（娱乐休闲:酒吧）
     if (type) {
-      sql += ` AND category LIKE ?`;
-      params.push(`%${type}%`);
+      sql += ` AND (tags = ? OR tags LIKE ? OR category LIKE ?)`;
+      params.push(type, `%${type}%`, `%${type}%`);
     }
 
     sql += ' ORDER BY created_at DESC';
@@ -53,10 +54,13 @@ const barService = {
     const amapService = require('./amap');
     try {
       const result = await amapService.getPoiDetail(bar.id);
+      if (!result) {
+        return { photos: [], rating: 0, deepType: '' };
+      }
       return {
-        photos: result.photos || [],
-        rating: result.rating || 0,
-        deepType: result.deepType || ''
+        photos: (result.photos || []).map(p => p.url),
+        rating: parseFloat(result.biz_ext?.rating) || 0,
+        deepType: result.type || ''
       };
     } catch (error) {
       console.error('[BarService] 高德API获取失败:', bar.id, error.message);
@@ -68,29 +72,56 @@ const barService = {
   async enrichBarsInBackground(bars, cacheKey, lat, lng, radius = 10000, keyword = '', type = '') {
     setImmediate(async () => {
       try {
-        for (const bar of bars) {
-          try {
-            const enriched = await this.enrichFromAmap(bar);
-            let updated = false;
+        // 只处理缺少图片或评分的酒吧
+        const needEnrich = bars.filter(bar => {
+          const hasPhotos = bar.photos && bar.photos.length > 0;
+          const hasRating = bar.avg_rating && parseFloat(bar.avg_rating) > 0;
+          return !hasPhotos || !hasRating;
+        });
 
-            if (enriched.photos && enriched.photos.length > 0) {
-              bar.photos = enriched.photos;
-              updated = true;
-            }
-            if (enriched.rating && enriched.rating > 0) {
-              bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
-              updated = true;
-            }
+        if (needEnrich.length === 0) {
+          console.log('[BarService] 所有酒吧数据完整，无需补充');
+          return;
+        }
 
-            if (updated) {
-              await db.query(
-                'UPDATE bars SET photos = ?, avg_rating = ? WHERE id = ?',
-                [JSON.stringify(bar.photos || []), bar.avg_rating || 0, bar.id]
-              );
-              console.log(`[BarService] 数据补充完成: ${bar.name}`);
+        console.log(`[BarService] 开始补充 ${needEnrich.length} 条酒吧数据（QPS限制，分批处理）`);
+
+        // 分批处理，每批5个，批间隔1秒，避免QPS超限
+        const BATCH_SIZE = 5;
+        const BATCH_DELAY = 1000; // 批间隔毫秒数
+
+        for (let i = 0; i < needEnrich.length; i += BATCH_SIZE) {
+          const batch = needEnrich.slice(i, i + BATCH_SIZE);
+
+          for (const bar of batch) {
+            try {
+              const enriched = await this.enrichFromAmap(bar);
+              let updated = false;
+
+              if (enriched.photos && enriched.photos.length > 0) {
+                bar.photos = enriched.photos;
+                updated = true;
+              }
+              if (enriched.rating && enriched.rating > 0) {
+                bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
+                updated = true;
+              }
+
+              if (updated) {
+                await db.query(
+                  'UPDATE bars SET photos = ?, avg_rating = ? WHERE id = ?',
+                  [JSON.stringify(bar.photos || []), bar.avg_rating || 0, bar.id]
+                );
+                console.log(`[BarService] 数据补充完成: ${bar.name}`);
+              }
+            } catch (err) {
+              console.error(`[BarService] 补充失败: ${bar.name} - ${err.message}`);
             }
-          } catch (err) {
-            console.error(`[BarService] 补充失败: ${bar.name} - ${err.message}`);
+          }
+
+          // 批间隔（最后一批不需要）
+          if (i + BATCH_SIZE < needEnrich.length) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
           }
         }
 
@@ -119,6 +150,7 @@ const barService = {
 
   // 获取酒吧评分汇总
   async getRatingSummary(barId) {
+    // reviews 表没有 status 字段，所有评价都视为有效
     const summary = await db.query(
       `SELECT 
         COUNT(*) as count,
@@ -129,7 +161,7 @@ const barService = {
         SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) as r2,
         SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) as r1
       FROM reviews 
-      WHERE bar_id = ? AND status = 'approved'`,
+      WHERE bar_id = ?`,
       [barId]
     );
 

@@ -96,6 +96,11 @@
   background: transparent;
   border: none;
   line-height: normal;
+  overflow: visible;
+}
+
+.user-avatar-btn::after {
+  border: none;
 }
 
 .user-avatar-btn:active {
@@ -569,9 +574,9 @@
   align-items: center;
 }
 
-.bar-rating::before {
-  content: '★';
-  margin-right: 4rpx;
+.bar-rating-none {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 400;
 }
 
 .bar-distance {

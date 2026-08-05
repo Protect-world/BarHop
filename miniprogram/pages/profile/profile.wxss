@@ -1,7 +1,7 @@
 .profile-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #16213E 0%, #1A1A2E 100%);
-  padding: 40rpx 40rpx 200rpx;
+  padding: 40rpx 40rpx 60rpx;
   box-sizing: border-box;
 }
 
@@ -24,6 +24,11 @@
   border-radius: 50%;
   overflow: visible;
   cursor: pointer;
+  margin: 0;
+}
+
+.avatar-btn::after {
+  border: none;
 }
 
 .avatar-btn:active {
@@ -103,18 +108,10 @@
 }
 
 .action-section {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
   display: flex;
   gap: 24rpx;
-  padding: 24rpx 40rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: rgba(22, 33, 62, 0.98);
-  backdrop-filter: blur(30px);
-  box-sizing: border-box;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.05);
+  padding: 40rpx 0 0;
+  margin-top: 20rpx;
 }
 
 .btn-primary {

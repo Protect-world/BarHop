@@ -1,11 +1,11 @@
 <view class="profile-page">
   <view class="avatar-section">
-    <view class="avatar-btn" bindtap="onChooseAvatarTap">
+    <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
       <image class="avatar" src="{{avatar || '/images/home.png'}}" mode="aspectFill" />
       <view class="avatar-edit">
         <text class="edit-icon">📷</text>
       </view>
-    </view>
+    </button>
     <text class="avatar-tip">点击更换头像</text>
   </view>
 

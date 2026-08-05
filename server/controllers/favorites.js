@@ -30,7 +30,8 @@ class FavoritesController {
 
   async removeFavorite(req, res) {
     try {
-      const { user_id, bar_id } = req.query;
+      // 同时支持 query 和 body 传参
+      const { user_id, bar_id } = { ...req.query, ...req.body };
       
       if (!user_id || !bar_id) {
         return res.json({ code: -1, message: '参数不完整' });
@@ -113,22 +114,21 @@ class FavoritesController {
           return img;
         });
         
-        // 评分逻辑：优先显示用户评分，如果没有则显示高德评分
+        // 评分优先级：高德评分 > 个人用户评分 > 暂无评分
         const userRating = f.user_rating ? parseFloat(f.user_rating) : 0;
         const userReviewCount = f.user_review_count ? parseInt(f.user_review_count) : 0;
         const amapRating = f.avg_rating ? parseFloat(f.avg_rating) : 0;
-        
-        // 显示用评分：用户有评价用用户评分，否则用高德评分
+
         let displayRating;
         let ratingSource;
-        if (userReviewCount > 0 && userRating > 0) {
-          displayRating = userRating.toFixed(1);
-          ratingSource = 'user';
-        } else if (amapRating > 0) {
+        if (amapRating > 0) {
           displayRating = amapRating.toFixed(1);
           ratingSource = 'amap';
+        } else if (userReviewCount > 0 && userRating > 0) {
+          displayRating = userRating.toFixed(1);
+          ratingSource = 'user';
         } else {
-          displayRating = null; // 暂无评分
+          displayRating = null;
           ratingSource = 'none';
         }
         

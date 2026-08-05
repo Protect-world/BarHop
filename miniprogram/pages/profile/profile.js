@@ -32,17 +32,10 @@ Page({
     }
   },
 
-  onChooseAvatarTap() {
-    wx.chooseAvatar({
-      success: (res) => {
-        const avatar = res.avatarUrl;
-        console.log('[Profile] 选择头像:', avatar);
-        this.setData({ avatar });
-      },
-      fail: (err) => {
-        console.log('[Profile] 选择头像取消或失败:', err);
-      }
-    });
+  onChooseAvatar(e) {
+    if (!e.detail.avatarUrl) return;
+    const avatar = e.detail.avatarUrl;
+    this.setData({ avatar });
   },
 
   onNicknameInput(e) {

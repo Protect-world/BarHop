@@ -96,11 +96,17 @@
 .bar-info {
   flex: 1;
   padding: 24rpx;
-  padding-right: 80rpx;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   min-width: 0;
+}
+
+.bar-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
 }
 
 .bar-header {
@@ -141,6 +147,15 @@
   font-weight: 700;
 }
 
+.rating-tag {
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-left: 6rpx;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2rpx 8rpx;
+  border-radius: 8rpx;
+}
+
 .rating.no-rating {
   background: rgba(255, 255, 255, 0.15);
   box-shadow: none;
@@ -172,30 +187,43 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .favorite-btn {
-  position: absolute;
-  right: 20rpx;
-  bottom: 20rpx;
-  width: 60rpx;
-  height: 60rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(233, 69, 96, 0.2);
   border-radius: 50%;
+  flex-shrink: 0;
+  border: 1rpx solid rgba(233, 69, 96, 0.3);
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .heart-icon {
-  width: 40rpx;
-  height: 40rpx;
+  width: 36rpx;
+  height: 36rpx;
+  display: block;
+  vertical-align: middle;
 }
 
 .loading {
   text-align: center;
   padding: 60rpx;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.list-bottom-tip {
+  text-align: center;
+  padding: 40rpx 0;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.35);
+  letter-spacing: 2rpx;
 }
 
 .bar-image-wrapper {

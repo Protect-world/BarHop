@@ -17,16 +17,17 @@
     <view class="fixed-header">
       <!-- 用户栏 -->
       <view class="user-bar" wx:if="{{userInfo && !isLoggingIn && pageVisible}}">
-        <view 
-          class="user-avatar-btn" 
-          bindtap="onChooseAvatarTap"
+        <button
+          class="user-avatar-btn"
+          open-type="chooseAvatar"
+          bindchooseavatar="onChooseAvatar"
         >
-          <image 
-            class="user-avatar" 
-            src="{{userInfo.avatar || '/images/home.png'}}" 
+          <image
+            class="user-avatar"
+            src="{{userInfo.avatar || '/images/home.png'}}"
             mode="aspectFill"
           />
-        </view>
+        </button>
         <view class="user-info">
           <input 
             class="user-nickname" 
@@ -190,7 +191,8 @@
               <view class="bar-address">{{item.address}}</view>
               <view class="bar-meta">
                 <text class="bar-tag">{{item.tags}}</text>
-                <text class="bar-rating">⭐ {{item.avg_rating}}</text>
+                <text class="bar-rating" wx:if="{{item.display_rating}}">⭐ {{item.display_rating}}</text>
+                <text class="bar-rating bar-rating-none" wx:else>暂无评分</text>
                 <text class="bar-distance">{{item.distance}}m</text>
               </view>
             </view>
@@ -214,7 +216,7 @@
           <text>加载更多...</text>
         </view>
         
-        <view class="list-bottom-tip" wx:if="{{displayBars.length > 0 && displayedCount >= allBars.length && displayedCount >= 20}}">— 已经到底啦~ —</view>
+        <view class="list-bottom-tip" wx:if="{{displayBars.length > 0 && displayedCount >= 20}}">— 已经到底啦~ —</view>
       </view>
     </scroll-view>
   </view>

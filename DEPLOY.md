@@ -1,6 +1,6 @@
-# BarHop 部署文档（Linux 服务器版）
+# BarHop 部署文档（Linux 服务器完整版）
 
-> 本文档详细说明如何将 BarHop 项目部署到 Linux 服务器，涵盖服务器选购、环境初始化、Docker 部署、Nginx 反向代理、HTTPS 证书、微信小程序配置、监控运维等全流程。
+> 本文档详细说明如何将 BarHop 项目从零部署到上线，涵盖服务器选购、ICP 备案、Docker 部署、Nginx 反向代理、HTTPS 证书、微信小程序配置、审核发布等全流程。
 >
 > 项目已托管到 GitHub，部署步骤从「服务器选购」开始。
 
@@ -9,21 +9,13 @@
 ## 目录
 
 - [一、部署架构总览](#一部署架构总览)
-- [二、选购云服务器](#二选购云服务器)
-- [三、服务器初始化](#三服务器初始化)
-- [四、安装 Docker 环境](#四安装-docker-环境)
-- [五、部署 BarHop 项目](#五部署-barhop-项目)
-- [六、配置 Nginx 反向代理](#六配置-nginx-反向代理)
-- [七、申请 HTTPS 证书](#七申请-https-证书)
-- [八、配置防火墙与安全组](#八配置防火墙与安全组)
-- [九、配置微信小程序](#九配置微信小程序)
-- [十、验证部署是否成功](#十验证部署是否成功)
-- [十一、日常运维命令](#十一日常运维命令)
-- [十二、日志与监控](#十二日志与监控)
-- [十三、自动备份方案](#十三自动备份方案)
-- [十四、持续集成/持续部署（CI/CD）](#十四持续集成持续部署cicd)
-- [十五、性能优化建议](#十五性能优化建议)
-- [十六、故障排查 FAQ](#十六故障排查-faq)
+- [二、第一阶段：基础准备](#二第一阶段基础准备预计-1-天)
+- [三、第二阶段：部署后端服务](#三第二阶段部署后端服务)
+- [四、第三阶段：微信小程序配置](#四第三阶段微信小程序配置)
+- [五、第四阶段：小程序发布](#五第四阶段小程序发布)
+- [六、运营和维护](#六运营和维护)
+- [七、执行路线图](#七执行路线图)
+- [八、费用总结](#八费用总结)
 
 ---
 
@@ -64,1537 +56,986 @@
 | MySQL | 8.0 | 3306 | 数据库 |
 | Redis | 7 | 6379 | 缓存 |
 
----
+### ⚠️ 微信小程序硬性要求
 
-## 二、选购云服务器
-
-### 2.1 推荐云服务商
-
-| 服务商 | 官网 | 优势 | 适用场景 |
-|--------|------|------|---------|
-| 阿里云 ECS | [aliyun.com](https://www.aliyun.com) | 国内节点丰富、备案方便 | 国内用户为主 |
-| 腾讯云 CVM | [cloud.tencent.com](https://cloud.tencent.com) | 性价比高、微信生态整合好 | 微信小程序后端首选 |
-| 华为云 ECS | [huaweicloud.com](https://www.huaweicloud.com) | 企业级稳定性 | 企业级项目 |
-| Vultr | [vultr.com](https://www.vultr.com) | 海外节点多、按小时计费 | 海外用户 |
-| DigitalOcean | [digitalocean.com](https://www.digitalocean.com) | 简单易用、社区好 | 个人项目 |
-
-> **微信小程序后端建议**：优先选择腾讯云，与微信生态集成最好，备案流程更顺畅。
-
-### 2.2 推荐配置
-
-#### 入门级（开发/演示，月费 ¥50-100）
-- CPU：1 核
-- 内存：2GB
-- 硬盘：40GB SSD
-- 带宽：1-3 Mbps
-- 系统：Ubuntu 22.04 LTS
-
-#### 标准级（小规模生产，月费 ¥150-300）⭐ 推荐
-- CPU：2 核
-- 内存：4GB
-- 硬盘：60GB SSD
-- 带宽：5 Mbps
-- 系统：Ubuntu 22.04 LTS
-
-#### 生产级（中等规模，月费 ¥500+）
-- CPU：4 核
-- 内存：8GB
-- 硬盘：100GB SSD
-- 带宽：10 Mbps
-- 系统：Ubuntu 22.04 LTS
-
-### 2.3 操作系统选择
-
-**强烈推荐 Ubuntu 22.04 LTS**：
-- 长期支持版本，支持到 2027 年
-- 社区文档丰富，问题容易解决
-- Docker 兼容性最好
-- 软件包管理方便（apt）
-
-> 也可以选择 CentOS 7+ / Debian 11+，命令略有不同（yum 替代 apt）。
-
-### 2.4 购买后必做的事
-
-1. **记录服务器信息**：公网 IP、初始密码、SSH 端口（默认 22）
-2. **配置安全组**：开放必要端口（见第八节）
-3. **测试 SSH 连接**：确认能从本地连上服务器
+| 要求 | 说明 |
+|------|------|
+| ✅ **必须 HTTPS** | HTTP 只在开发者工具调试时可用 |
+| ✅ **必须是域名** | **不支持 IP 地址**（如 `https://1.2.3.4` ❌） |
+| ✅ **必须备案** | 域名需 ICP 备案（国内服务器） |
+| ✅ **必须预配置** | 域名要在公众平台提前登记 |
+| ✅ **端口只能 443** | 不能用其他端口 |
 
 ---
 
-## 三、服务器初始化
+## 二、第一阶段：基础准备（预计 1 天）
 
-### 3.1 连接服务器
+### Step 1: 购买云服务器和域名
 
+#### 1.1 购买云服务器（推荐腾讯云）
+
+**访问**：[腾讯云官网](https://cloud.tencent.com)
+
+**推荐配置**：
+
+| 配置项 | 选择 | 说明 |
+|--------|------|------|
+| 产品 | **轻量应用服务器** | 比 ECS 便宜，够用 |
+| 规格 | **2核4G** | 起步配置 |
+| 系统 | **Ubuntu 22.04 LTS** | 稳定、文档多 |
+| 地域 | **广州/深圳** | 微信服务器在广州，延迟低 |
+| 系统盘 | **50GB SSD** | 够用 |
+| 带宽 | **5Mbps 按量付费** | 流量不大 |
+
+**操作步骤**：
+1. 注册腾讯云账号 → 实名认证（需身份证）
+2. 进入轻量应用服务器 → 选购
+3. 设置 root 密码（请记好！）
+4. 购买完成，记录 **公网 IP 地址**
+
+**费用**：约 ¥60-80/月（新用户更便宜）
+
+#### 1.2 购买域名
+
+**访问**：[腾讯云域名注册](https://cloud.tencent.com/product/domain)
+
+**操作步骤**：
+1. 搜索你想要的域名（如 `barhop.com`、`barhop.cn`）
+2. 选择可用域名（`.com` 约 ¥60/年，`.cn` 约 ¥30/年）
+3. 购买并完成实名认证
+
+**⚠️ 重要**：域名实名认证信息要和服务器实名认证信息一致，否则备案会失败！
+
+---
+
+### Step 2: 完成 ICP 备案（预计 7-20 天，可并行）
+
+**备案期间可以先开发测试，用 IP 地址调试**
+
+#### 2.1 开始备案流程
+
+**访问**：[腾讯云备案系统](https://console.cloud.tencent.com/beian)
+
+**操作步骤**：
+
+1. 进入备案系统 → 点击「开始备案」
+2. 选择备案类型：
+   - **个人**：个人开发者选这个
+   - **企业**：用营业执照备案
+3. 填写主体信息：
+   ```
+   姓名/企业名：xxx
+   证件号：身份证号/统一社会信用代码
+   手机号：xxx（会收验证码）
+   邮箱：xxx
+   ```
+4. 填写网站信息：
+   ```
+   网站名称：BarHop 酒吧探索
+   网站域名：你买的域名
+   服务内容：酒吧信息展示、用户评价
+   网站类型：企业/综合
+   ```
+5. 上传资料：
+   - 身份证正反面照片（个人）或营业执照（企业）
+   - 人脸核验（App 扫码）
+   - 网站真实性核验单（下载签字后上传）
+   - 幕布照片（去线下核验点拍照或付费上门）
+
+#### 2.2 等待审核
+
+| 阶段 | 耗时 | 操作 |
+|------|------|------|
+| 腾讯云初审 | 1-2 个工作日 | 腾讯云人工审核资料 |
+| 提交到管局 | 1 个工作日 | 腾讯云提交给工信部 |
+| 管局审核 | 5-15 个工作日 | 工信部审核 |
+
+**加快方法**：
+- 腾讯云老用户、历史备案无违规 → 最快 3-5 天
+- 小程序备案通道（如果你是小程序专用域名）→ 更快
+
+---
+
+### Step 3: 服务器初始化（备案期间可做）
+
+**SSH 登录服务器**：
 ```bash
-# 在本地终端（Windows 用 PowerShell，Mac/Linux 用 Terminal）
 ssh root@你的服务器IP
-
-# 例如：
-ssh root@123.45.67.89
-
-# 首次连接会提示是否信任主机，输入 yes 并回车
-# 然后输入密码（输入时不会显示字符，这是正常的）
+# 输入购买时设置的密码
 ```
 
-**推荐使用 SSH 密钥登录（更安全）**：
+#### 3.1 创建管理用户（安全最佳实践）
 
 ```bash
-# 在本地生成密钥对（如果没有）
-ssh-keygen -t rsa -b 4096 -C "barhop-server"
-
-# 将公钥上传到服务器
-ssh-copy-id root@你的服务器IP
-
-# 之后登录无需密码
-ssh root@你的服务器IP
-```
-
-### 3.2 创建非 root 用户（安全最佳实践）
-
-```bash
-# 创建新用户（替换 barhop 为你喜欢的用户名）
+# 创建新用户
 adduser barhop
+# 设置密码（输入两次）
 
-# 按提示设置密码和用户信息
-
-# 赋予 sudo 权限
+# 将新用户加入 sudo 组
 usermod -aG sudo barhop
 
-# 切换到新用户
-su - barhop
+# 测试登录
+exit  # 退出 root
+ssh barhop@你的服务器IP
+sudo whoami  # 应该显示 root
 ```
 
-### 3.3 禁用 root SSH 登录（可选但推荐）
+#### 3.2 配置 SSH 安全
 
 ```bash
-# 编辑 SSH 配置
-sudo nano /etc/ssh/sshd_config
+# 使用 root 登录
+sudo vim /etc/ssh/sshd_config
 
-# 找到以下行并修改
-PermitRootLogin no
-PasswordAuthentication no  # 如果已配置密钥登录
+# 修改以下配置：
+Port 2222                    # 改成非标准端口（防扫描）
+PermitRootLogin no           # 禁止 root 登录
+PasswordAuthentication no    # 关闭密码登录（改用密钥）
+PubkeyAuthentication yes      # 开启密钥认证
+
+# 生成密钥（在本地 Windows PowerShell 执行）
+ssh-keygen -t ed25519 -C "barhop"
+# 会生成 C:\Users\你的用户名\.ssh\id_ed25519
+
+# 复制公钥到服务器
+cat ~/.ssh/id_ed25519.pub | ssh barhop@服务器IP -p 2222 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 
 # 重启 SSH 服务
 sudo systemctl restart sshd
 ```
 
-> ⚠️ 修改前请确保新用户的 SSH 密钥已配置好，否则可能无法登录！
-
-### 3.4 系统更新与基础工具
+#### 3.3 配置防火墙（UFW）
 
 ```bash
-# 更新软件包列表
+# 安装 UFW
 sudo apt update
+sudo apt install ufw -y
 
-# 升级已安装的软件包
-sudo apt upgrade -y
+# 设置默认策略
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
 
-# 安装基础工具
-sudo apt install -y \
-    curl \
-    wget \
-    git \
-    vim \
-    nano \
-    htop \
-    unzip \
-    build-essential \
-    ca-certificates \
-    gnupg \
-    lsb-release \
-    software-properties-common
+# 开放必要端口
+sudo ufw allow 2222/tcp     # SSH（你改成的端口）
+sudo ufw allow 80/tcp        # HTTP
+sudo ufw allow 443/tcp       # HTTPS
 
-# 设置时区为上海
-sudo timedatectl set-timezone Asia/Shanghai
-
-# 验证时间
-date
+# 启用防火墙
+sudo ufw enable
+sudo ufw status  # 检查状态
 ```
 
-### 3.5 配置 Swap 分区（小内存服务器必做）
-
-> 2GB 内存的服务器强烈建议配置 Swap，否则 MySQL 容易 OOM。
+#### 3.4 配置 Swap 分区（小内存服务器必做）
 
 ```bash
-# 创建 2GB 的 Swap 文件
+# 创建 2GB swap 文件
 sudo fallocate -l 2G /swapfile
-
-# 设置权限
 sudo chmod 600 /swapfile
-
-# 格式化为 Swap
 sudo mkswap /swapfile
-
-# 启用 Swap
 sudo swapon /swapfile
 
-# 永久生效（写入 fstab）
+# 设置开机自动挂载
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
-# 优化 Swap 配置
+# 配置 swappiness（减少使用 swap）
 echo 'vm.swappiness=10' | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 
 # 验证
-free -h
+free -h  # 应该看到 swap 列
 ```
 
-### 3.6 配置防火墙（UFW）
+#### 3.5 更新系统
 
 ```bash
-# 安装 UFW（通常已预装）
-sudo apt install -y ufw
-
-# 默认策略：拒绝入站，允许出站
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-
-# 允许 SSH（重要！否则会把自己锁在外面）
-sudo ufw allow ssh
-# 或者如果改了 SSH 端口：sudo ufw allow 2222/tcp
-
-# 允许 HTTP 和 HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# 启用防火墙
-sudo ufw enable
-
-# 查看状态
-sudo ufw status verbose
+sudo apt update && sudo apt upgrade -y
 ```
 
 ---
 
-## 四、安装 Docker 环境
-
-### 4.1 安装 Docker Engine
+### Step 4: 安装 Docker 和 Docker Compose
 
 ```bash
-# 卸载旧版本（如果有）
-sudo apt remove -y docker docker-engine docker.io containerd runc
+# 安装 Docker（官方脚本）
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
 
-# 添加 Docker 官方 GPG 密钥
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-    sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-# 添加 Docker 仓库
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# 更新包列表
-sudo apt update
-
-# 安装 Docker
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# 启动并设置开机自启
+# 启动 Docker 并设置开机自启
 sudo systemctl enable docker
 sudo systemctl start docker
 
-# 验证安装
+# 验证
 docker --version
-# Docker version 24.x.x
+# Docker version 27.x.x
 
-# 运行测试容器
-sudo docker run hello-world
-```
+# 将用户加入 docker 组（免 sudo）
+sudo usermod -aG docker barhop
+# 重新登录或执行：newgrp docker
 
-> **国内服务器加速**：如果拉取镜像慢，配置国内镜像源：
-> ```bash
-> sudo mkdir -p /etc/docker
-> sudo tee /etc/docker/daemon.json <<EOF
-> {
->   "registry-mirrors": [
->     "https://docker.mirrors.ustc.edu.cn",
->     "https://hub-mirror.c.163.com",
->     "https://mirror.baidubce.com"
->   ],
->   "log-driver": "json-file",
->   "log-opts": {
->     "max-size": "10m",
->     "max-file": "3"
->   }
-> }
-> EOF
-> sudo systemctl daemon-reload
-> sudo systemctl restart docker
-> ```
+# 安装 Docker Compose V2
+sudo apt install docker-compose-plugin -y
 
-### 4.2 配置 Docker 用户组
-
-```bash
-# 将当前用户加入 docker 组（免 sudo 运行 docker 命令）
-sudo usermod -aG docker $USER
-
-# 重新登录使组生效
-exit
-# 重新 SSH 登录
-
-# 验证（不需要 sudo）
-docker ps
-```
-
-### 4.3 验证 Docker Compose
-
-```bash
-# Docker Compose V2 作为插件集成（推荐方式）
+# 验证
 docker compose version
 # Docker Compose version v2.x.x
-```
 
-> **注意**：本项目使用 `docker compose`（带空格，V2 语法），而非 `docker-compose`（带连字符，V1 语法）。
-
----
-
-## 五、部署 BarHop 项目
-
-### 5.1 克隆项目
-
-```bash
-# 进入部署目录
-cd /opt
-
-# 克隆项目（替换为你的 GitHub 仓库地址）
-sudo git clone https://github.com/你的用户名/BarHop.git
-
-# 修改所有者
-sudo chown -R $USER:$USER /opt/BarHop
-
-# 进入项目目录
-cd /opt/BarHop
-
-# 查看项目结构
-ls -la
-```
-
-### 5.2 配置环境变量
-
-```bash
-# 复制环境变量模板
-cp .env.example .env
-
-# 生成强密码（建议使用随机字符串）
-openssl rand -base64 32  # 用于 JWT_SECRET
-openssl rand -base64 16  # 用于 MySQL 密码
-openssl rand -base64 16  # 用于 Redis 密码
-
-# 编辑配置文件
-nano .env
-```
-
-**`.env` 文件配置示例**：
-
-```env
-# ============================================
-# BarHop 生产环境配置
-# ============================================
-
-# 服务配置
-SERVER_PORT=3000
-SERVER_BASE_URL=https://你的域名.com
-NODE_ENV=production
-
-# MySQL 数据库配置（使用上方生成的随机密码）
-MYSQL_ROOT_PASSWORD=替换为生成的强密码
-MYSQL_DATABASE=barhop
-MYSQL_USER=barhop_user
-MYSQL_PASSWORD=替换为生成的强密码
-
-# Redis 配置
-REDIS_PASSWORD=替换为生成的强密码
-
-# JWT 配置（至少 32 位字符）
-JWT_SECRET=替换为生成的32位以上随机字符串
-
-# 微信小程序配置（从微信公众平台获取）
-WECHAT_APPID=你的小程序AppID
-WECHAT_SECRET=你的小程序Secret
-
-# 高德地图配置（从高德开放平台获取）
-AMAP_KEY=你的高德地图Key
-```
-
-> ⚠️ **安全提示**：
-> - `.env` 文件包含敏感信息，**千万不要提交到 Git**
-> - 确认 `.gitignore` 中已包含 `.env`
-> - 文件权限设置为 `chmod 600 .env`
-
-```bash
-# 设置文件权限（仅所有者可读写）
-chmod 600 .env
-```
-
-### 5.3 创建必要目录
-
-```bash
-# 创建上传目录
-mkdir -p server/uploads
-touch server/uploads/.gitkeep
-
-# 创建日志目录
-mkdir -p server/logs
-
-# 创建 Nginx 配置目录（通常已存在）
-mkdir -p nginx/conf.d
-```
-
-### 5.4 检查数据库初始化脚本
-
-```bash
-# 确认 schema.sql 存在
-ls -la database/schema.sql
-
-# 查看内容（前 20 行）
-head -20 database/schema.sql
-```
-
-> `schema.sql` 会在 MySQL 容器首次启动时自动执行（通过 docker-entrypoint-initdb.d 挂载）。
-
-### 5.5 启动服务
-
-#### 5.5.1 首次启动（构建镜像 + 拉取依赖镜像）
-
-```bash
-# 后台启动并构建镜像（首次约需 3-5 分钟）
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-#### 5.5.2 查看启动状态
-
-```bash
-# 查看所有容器状态
-docker compose -f docker-compose.prod.yml ps
-
-# 预期输出：
-# NAME              STATUS     PORTS
-# barhop-mysql      Up         0.0.0.0:3307->3306/tcp
-# barhop-redis       Up         0.0.0.0:6379->6379/tcp
-# barhop-server      Up         0.0.0.0:3000->3000/tcp
-# barhop-nginx       Up         0.0.0.0:80->80/tcp, 0.0.0.0:443->443/tcp
-```
-
-#### 5.5.3 查看启动日志
-
-```bash
-# 查看所有服务日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 单独查看某个服务
-docker compose -f docker-compose.prod.yml logs -f mysql
-docker compose -f docker-compose.prod.yml logs -f redis
-docker compose -f docker-compose.prod.yml logs -f server
-docker compose -f docker-compose.prod.yml logs -f nginx
-```
-
-#### 5.5.4 验证服务健康
-
-```bash
-# 测试 API 健康检查
-curl http://localhost:3000/health
-
-# 预期返回：
-# {"code":0,"message":"BarHop Server is running","data":{"database":"connected","dbTest":1}}
-
-# 测试 API 文档端点
-curl http://localhost:3000/api
-
-# 预期返回 API 端点列表
-```
-
-### 5.6 数据库初始化说明
-
-MySQL 容器**首次启动**时会自动执行 `database/schema.sql` 创建表结构。如果需要重新初始化：
-
-```bash
-# ⚠️ 危险操作：会删除所有数据！
-docker compose -f docker-compose.prod.yml down -v  # 删除数据卷
-docker compose -f docker-compose.prod.yml up -d --build  # 重新启动
-```
-
-### 5.7 导入测试数据（可选）
-
-```bash
-# 如果有测试数据 SQL 文件
-docker exec -i barhop-mysql mysql -u barhop_user -p你的密码 barhop < test_data.sql
-```
-
----
-
-## 六、配置 Nginx 反向代理
-
-### 6.1 Nginx 配置说明
-
-Nginx 配置文件位于 [nginx/conf.d/barhop.conf](file:///e:/coding/selfCoding/BarHop/nginx/conf.d/barhop.conf)，已包含以下功能：
-
-- 静态文件服务（`/uploads/` 路径）
-- API 反向代理（`/api/` 路径）
-- 健康检查代理（`/health`）
-- 文件上传大小限制（50MB）
-- 安全防护（禁止访问隐藏文件）
-
-### 6.2 配置域名（如果有）
-
-编辑 `nginx/conf.d/barhop.conf`：
-
-```bash
-nano nginx/conf.d/barhop.conf
-```
-
-修改 `server_name` 为你的域名：
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com www.your-domain.com;  # 改为你的域名
-    
-    # ... 其他配置保持不变
-}
-```
-
-### 6.3 重启 Nginx 使配置生效
-
-```bash
-docker compose -f docker-compose.prod.yml restart nginx
-```
-
-### 6.4 验证 Nginx 配置
-
-```bash
-# 测试配置语法
-docker exec barhop-nginx nginx -t
-
-# 重新加载配置（不中断服务）
-docker exec barhop-nginx nginx -s reload
-```
-
-### 6.5 配置 HTTPS（强烈推荐）
-
-见下一节申请 SSL 证书。
-
----
-
-## 七、申请 HTTPS 证书
-
-微信小程序**强制要求后端必须是 HTTPS**，因此必须配置 SSL 证书。
-
-### 7.1 方式一：Let's Encrypt 免费证书（推荐）
-
-#### 7.1.1 安装 Certbot
-
-```bash
-# 安装 certbot
-sudo apt install -y certbot
-
-# 停止 Nginx 释放 80 端口（因为 Let's Encrypt 需要 80 端口验证）
-docker compose -f docker-compose.prod.yml stop nginx
-```
-
-#### 7.1.2 申请证书
-
-```bash
-# 替换 your-domain.com 为你的域名
-# -d 后面跟你的域名，可以加多个
-sudo certbot certonly \
-    --standalone \
-    -d your-domain.com \
-    -d www.your-domain.com \
-    --email your-email@example.com \
-    --agree-tos \
-    --no-eff-email
-
-# 成功后证书位置：
-# 证书：/etc/letsencrypt/live/your-domain.com/fullchain.pem
-# 私钥：/etc/letsencrypt/live/your-domain.com/privkey.pem
-```
-
-#### 7.1.3 配置 Nginx 使用证书
-
-修改 `nginx/conf.d/barhop.conf`，**完整替换**为：
-
-```nginx
-upstream barhop_backend {
-    server server:3000;
-}
-
-# HTTP 重定向到 HTTPS
-server {
-    listen 80;
-    server_name your-domain.com www.your-domain.com;
-    return 301 https://$host$request_uri;
-}
-
-# HTTPS 主服务
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com www.your-domain.com;
-    
-    # SSL 证书配置
-    ssl_certificate /etc/nginx/ssl/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
-    ssl_prefer_server_ciphers off;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 1d;
-    
-    # 安全响应头
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header X-Frame-Options SAMEORIGIN;
-    add_header X-Content-Type-Options nosniff;
-    
-    # 禁止访问隐藏文件
-    location ~ /\. {
-        deny all;
-        access_log off;
-        log_not_found off;
-    }
-    
-    # 上传文件静态服务
-    location /uploads/ {
-        alias /var/www/uploads/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-        add_header Access-Control-Allow-Origin *;
-    }
-    
-    # API 代理
-    location /api/ {
-        proxy_pass http://barhop_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        
-        # 文件上传大小限制
-        client_max_body_size 50m;
-        proxy_max_temp_file_size 0;
-        
-        # 超时设置
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-    
-    # 健康检查
-    location /health {
-        proxy_pass http://barhop_backend;
-        access_log off;
-    }
-    
-    # 默认返回 404
-    location / {
-        return 404 '{"code":-1,"message":"BarHop API Server"}';
-        add_header Content-Type application/json;
-    }
-}
-```
-
-#### 7.1.4 修改 docker-compose 挂载证书
-
-编辑 `docker-compose.prod.yml`，在 nginx 服务的 volumes 中添加证书挂载：
-
-```yaml
-  nginx:
-    # ... 其他配置
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./server/uploads:/var/www/uploads
-      - /etc/letsencrypt/live/your-domain.com/fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro
-      - /etc/letsencrypt/live/your-domain.com/privkey.pem:/etc/nginx/ssl/privkey.pem:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-```
-
-> 注意：直接挂载单个文件可能导致证书续期后不生效。推荐方式是挂载整个 `/etc/letsencrypt` 目录，并在 Nginx 配置中引用完整路径：
-> ```nginx
-> ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-> ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-> ```
-
-#### 7.1.5 启动并验证
-
-```bash
-# 重新启动所有服务
-docker compose -f docker-compose.prod.yml up -d
-
-# 测试 HTTPS
-curl https://your-domain.com/health
-```
-
-#### 7.1.6 配置自动续期
-
-Let's Encrypt 证书有效期 90 天，需要定期续期。
-
-```bash
-# 测试续期命令（不会真正续期）
-sudo certbot renew --dry-run
-
-# 添加定时任务：每周一凌晨 3 点检查并续期
-sudo crontab -e
-
-# 添加以下行：
-0 3 * * 1 certbot renew --quiet --post-hook "docker restart barhop-nginx"
-```
-
-### 7.2 方式二：使用云服务商免费证书
-
-阿里云、腾讯云都提供免费 1 年的 SSL 证书：
-
-1. 在云控制台申请免费证书
-2. 下载 Nginx 格式的证书（.pem 和 .key 文件）
-3. 上传到服务器：
-
-```bash
-# 在服务器创建目录
-sudo mkdir -p /opt/BarHop/nginx/ssl
-
-# 上传证书文件（在本地执行）
-scp your-domain.pem root@服务器IP:/opt/BarHop/nginx/ssl/
-scp your-domain.key root@服务器IP:/opt/BarHop/nginx/ssl/
-```
-
-4. 修改 `docker-compose.prod.yml`：
-
-```yaml
-  nginx:
-    volumes:
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      # ... 其他配置
-```
-
-5. Nginx 配置中使用：
-```nginx
-ssl_certificate /etc/nginx/ssl/your-domain.pem;
-ssl_certificate_key /etc/nginx/ssl/your-domain.key;
-```
-
-### 7.3 方式三：自签名证书（仅测试用）
-
-```bash
-# 生成自签名证书
-sudo openssl req -x509 -nodes -days 365 \
-    -newkey rsa:2048 \
-    -keyout /opt/BarHop/nginx/ssl/selfsigned.key \
-    -out /opt/BarHop/nginx/ssl/selfsigned.crt \
-    -subj "/C=CN/ST=Shanghai/L=Shanghai/O=BarHop/CN=your-domain.com"
-```
-
-> ⚠️ 自签名证书浏览器会警告不安全，**微信小程序不接受自签名证书**，仅用于本地测试。
-
----
-
-## 八、配置防火墙与安全组
-
-### 8.1 服务器防火墙（UFW）
-
-```bash
-# 查看当前规则
-sudo ufw status
-
-# 确保开放必要端口
-sudo ufw allow 22/tcp     # SSH
-sudo ufw allow 80/tcp     # HTTP
-sudo ufw allow 443/tcp    # HTTPS
-
-# 不要对外开放以下端口（仅 Docker 内部使用）：
-# 3306/3307 - MySQL
-# 6379      - Redis
-# 3000      - Node.js（通过 Nginx 代理）
-```
-
-### 8.2 云服务商安全组
-
-登录云控制台，在「安全组」中添加规则：
-
-| 协议 | 端口 | 来源 | 说明 |
-|------|------|------|------|
-| TCP | 22 | 你的 IP | SSH 远程登录 |
-| TCP | 80 | 0.0.0.0/0 | HTTP |
-| TCP | 443 | 0.0.0.0/0 | HTTPS |
-
-> **重要**：不要将 3306、6379、3000 端口开放到公网！这些端口仅限服务器内部 Docker 网络使用。
-
-### 8.3 Docker 端口暴露问题
-
-检查 `docker-compose.prod.yml`，确保 MySQL 和 Redis **不对宿主机暴露端口**：
-
-```yaml
-# 推荐配置（不暴露端口）
-mysql:
-  # 不要写 ports，仅在 Docker 网络内访问
-  expose:
-    - "3306"
-```
-
-如果确实需要从外部访问数据库（不推荐），用 SSH 隧道：
-
-```bash
-# 在本地执行，建立隧道
-ssh -L 3306:localhost:3306 root@服务器IP
-
-# 然后本地可以用 127.0.0.1:3306 连接数据库
-```
-
----
-
-## 九、配置微信小程序
-
-### 9.1 登录微信公众平台
-
-访问 [https://mp.weixin.qq.com](https://mp.weixin.qq.com)，用小程序管理员账号登录。
-
-### 9.2 获取小程序凭证
-
-1. 进入「开发」→「开发管理」→「开发设置」
-2. 记录：
-   - **AppID**：`wx...`（更新到服务器 `.env` 的 `WECHAT_APPID`）
-   - **AppSecret**：点击「重置」获取（更新到服务器 `.env` 的 `WECHAT_SECRET`）
-
-### 9.3 配置服务器域名
-
-在「开发设置」→「服务器域名」中添加：
-
-| 类型 | 域名 |
-|------|------|
-| request 合法域名 | `https://your-domain.com` |
-| uploadFile 合法域名 | `https://your-domain.com` |
-| downloadFile 合法域名 | `https://your-domain.com` |
-
-> ⚠️ 必须是 HTTPS，不能带端口号，不能带路径。
-
-### 9.4 更新小程序配置
-
-修改 [miniprogram/utils/config.js](file:///e:/coding/selfCoding/BarHop/miniprogram/utils/config.js)：
-
-```javascript
-const config = {
-  // 生产环境
-  API_BASE_URL: 'https://your-domain.com',
-  
-  // 开发环境（本地调试用，注释掉）
-  // API_BASE_URL: 'http://localhost:3000',
-  
-  // 缓存键
-  CACHE_KEYS: {
-    TOKEN: 'barhop_token',
-    USER_INFO: 'barhop_user_info',
-    // ...
-  },
-  
-  // 请求超时
-  TIMEOUT: 10000
-};
-```
-
-### 9.5 上传小程序代码
-
-1. 打开微信开发者工具
-2. 导入项目 `miniprogram` 目录
-3. 点击「上传」→ 填写版本号和描述
-4. 在微信公众平台提交审核
-
----
-
-## 十、验证部署是否成功
-
-### 10.1 检查服务状态
-
-```bash
-# 1. 检查所有容器运行中
-docker compose -f docker-compose.prod.yml ps
-
-# 2. 检查健康状态
-curl http://localhost:3000/health
-# 应返回 database: connected
-
-# 3. 检查 HTTPS 证书
-curl -I https://your-domain.com/health
-# 应返回 HTTP/2 200
-```
-
-### 10.2 检查 API 功能
-
-```bash
-# 测试获取酒吧列表
-curl -X POST https://your-domain.com/api/bars/nearby \
-    -H "Content-Type: application/json" \
-    -d '{"lat": 34.2525, "lng": 108.9444, "radius": 5000}'
-
-# 应返回酒吧数据
-```
-
-### 10.3 检查图片访问
-
-```bash
-# 测试上传的图片是否可访问
-# 替换为实际图片路径
-curl -I https://your-domain.com/uploads/xxx.png
-# 应返回 200 OK
-```
-
-### 10.4 检查微信小程序连接
-
-1. 打开微信开发者工具
-2. 确认 `config.js` 中的 `API_BASE_URL` 已改为 `https://your-domain.com`
-3. 编译运行小程序
-4. 查看是否正常加载数据
-
----
-
-## 十一、日常运维命令
-
-### 11.1 服务管理
-
-```bash
-# 启动所有服务
-docker compose -f docker-compose.prod.yml up -d
-
-# 停止所有服务
-docker compose -f docker-compose.prod.yml down
-
-# 重启所有服务
-docker compose -f docker-compose.prod.yml restart
-
-# 重启单个服务
-docker compose -f docker-compose.prod.yml restart server
-docker compose -f docker-compose.prod.yml restart nginx
-
-# 重新构建并启动（代码更新后）
-docker compose -f docker-compose.prod.yml up -d --build server
-
-# 查看服务状态
-docker compose -f docker-compose.prod.yml ps
-```
-
-### 11.2 代码更新部署
-
-```bash
-# 进入项目目录
-cd /opt/BarHop
-
-# 拉取最新代码
-git pull origin main
-
-# 重新构建并启动
-docker compose -f docker-compose.prod.yml up -d --build server
-
-# 查看启动日志
-docker compose -f docker-compose.prod.yml logs -f server
-```
-
-### 11.3 数据库管理
-
-```bash
-# 连接 MySQL（交互式）
-docker exec -it barhop-mysql mysql -u barhop_user -p
-# 输入密码后进入 MySQL 控制台
-
-# 查看所有数据库
-SHOW DATABASES;
-USE barhop;
-SHOW TABLES;
-
-# 退出
-exit;
-
-# 备份数据库
-docker exec barhop-mysql mysqldump -u root -p密码 barhop > backup.sql
-
-# 恢复数据库
-docker exec -i barhop-mysql mysql -u root -p密码 barhop < backup.sql
-```
-
-### 11.4 Redis 管理
-
-```bash
-# 连接 Redis
-docker exec -it barhop-redis redis-cli -a 你的Redis密码
-
-# 常用命令
-KEYS *              # 查看所有 key
-GET bars:nearby:*   # 查看缓存数据
-FLUSHDB             # 清空当前数据库（⚠️ 慎用）
-exit
-```
-
-### 11.5 查看日志
-
-```bash
-# 实时查看所有日志
-docker compose -f docker-compose.prod.yml logs -f
-
-# 查看最近 100 行
-docker compose -f docker-compose.prod.yml logs --tail 100 server
-
-# 查看指定时间段日志
-docker compose -f docker-compose.prod.yml logs --since 30m server
-docker compose -f docker-compose.prod.yml logs --since 2026-07-31T10:00:00 server
-```
-
----
-
-## 十二、日志与监控
-
-### 12.1 日志文件位置
-
-```bash
-# 服务器应用日志（在容器内 /app/logs，映射到宿主机）
-ls -la /opt/BarHop/server/logs/
-
-# Nginx 访问日志
-docker exec barhop-nginx cat /var/log/nginx/access.log
-
-# Nginx 错误日志
-docker exec barhop-nginx cat /var/log/nginx/error.log
-
-# Docker 容器日志
-docker logs barhop-server
-docker logs barhop-mysql
-```
-
-### 12.2 Docker 日志轮转配置
-
-已在 `/etc/docker/daemon.json` 中配置（见 4.1 节）：
-
-```json
+# 配置 Docker 国内镜像加速
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<'EOF'
 {
+  "registry-mirrors": [
+    "https://mirror.ccs.tencentyun.com",
+    "https://docker.m.daocloud.io",
+    "https://hub-mirror.c.163.com"
+  ],
+  "log-driver": "json-file",
   "log-opts": {
     "max-size": "10m",
     "max-file": "3"
   }
 }
-```
+EOF
 
-### 12.3 系统资源监控
-
-```bash
-# 实时监控 CPU、内存、磁盘
-htop
-
-# 查看 Docker 资源占用
-docker stats
-
-# 查看磁盘使用
-df -h
-
-# 查看内存使用
-free -h
-
-# 查看网络连接
-ss -tlnp
-```
-
-### 12.4 简单健康检查脚本
-
-创建 `/opt/BarHop/health-check.sh`：
-
-```bash
-#!/bin/bash
-# 健康检查脚本
-
-ALERT_EMAIL="your-email@example.com"
-SERVER_URL="https://your-domain.com/health"
-
-response=$(curl -s -w "\n%{http_code}" $SERVER_URL)
-http_code=$(echo "$response" | tail -n1)
-body=$(echo "$response" | head -n -1)
-
-if [ "$http_code" != "200" ]; then
-    echo "[$(date)] 服务异常! HTTP状态: $http_code" >> /var/log/barhop-health.log
-    # 可以接入邮件/钉钉/企业微信告警
-    # echo "BarHop 服务异常" | mail -s "告警" $ALERT_EMAIL
-    exit 1
-fi
-
-# 检查数据库连接
-if echo "$body" | grep -q '"database":"connected"'; then
-    echo "[$(date)] 服务正常" >> /var/log/barhop-health.log
-else
-    echo "[$(date)] 数据库连接异常: $body" >> /var/log/barhop-health.log
-fi
-```
-
-```bash
-# 赋予执行权限
-chmod +x /opt/BarHop/health-check.sh
-
-# 添加定时任务：每 5 分钟检查一次
-crontab -e
-# 添加：
-*/5 * * * * /opt/BarHop/health-check.sh
+# 重启 Docker
+sudo systemctl restart docker
 ```
 
 ---
 
-## 十三、自动备份方案
+## 三、第二阶段：部署后端服务
 
-### 13.1 创建备份脚本
+### Step 5: 配置项目环境变量
+
+#### 5.1 克隆项目代码
 
 ```bash
-# 创建备份目录
-sudo mkdir -p /opt/backups
+# 登录服务器
+ssh barhop@服务器IP -p 2222
 
-# 创建备份脚本
-sudo nano /opt/backup.sh
+# 克隆项目
+cd /opt
+git clone https://github.com/你的GitHub用户名/BarHop.git
+cd BarHop
 ```
 
-脚本内容：
+#### 5.2 创建环境变量文件
 
+```bash
+cd /opt/BarHop
+cp .env.example .env
+vim .env
+```
+
+**填写以下内容**：
+
+```env
+# 服务器配置
+NODE_ENV=production
+PORT=3000
+SERVER_BASE_URL=https://你的域名.com
+
+# MySQL 配置（与 docker-compose 对应）
+DB_HOST=mysql
+DB_PORT=3306
+DB_NAME=barhop
+DB_USER=barhop_user
+DB_PASSWORD=设置一个强密码
+
+# Redis 配置
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=设置一个密码
+
+# JWT 密钥（随机生成）
+JWT_SECRET=用 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))" 生成
+
+# 微信小程序配置
+WECHAT_APPID=wxb83650bafb225674
+WECHAT_SECRET=你的微信小程序AppSecret（在mp.weixin.qq.com获取）
+
+# 腾讯地图 API（如果需要）
+TENCENT_MAP_KEY=你的腾讯地图Key
+```
+
+#### 5.3 生成 JWT 密钥
+
+```bash
+# 在服务器上执行
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+# 复制输出结果，粘贴到 .env 的 JWT_SECRET
+```
+
+---
+
+### Step 6: 使用 Docker 部署后端服务
+
+#### 6.1 修改 docker-compose.prod.yml
+
+```bash
+vim /opt/BarHop/docker-compose.prod.yml
+```
+
+**确认以下配置**：
+```yaml
+# 检查 MySQL 密码是否和 .env 一致
+# 检查 Redis 密码是否和 .env 一致
+# 检查端口映射
+```
+
+#### 6.2 开始部署
+
+```bash
+cd /opt/BarHop
+
+# 构建并启动所有服务
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 查看服务状态
+docker compose -f docker-compose.prod.yml ps
+
+# 查看日志
+docker compose -f docker-compose.prod.yml logs -f
+```
+
+#### 6.3 初始化数据库
+
+```bash
+# 进入 MySQL 容器
+docker exec -it barhop-mysql mysql -uroot -p
+
+# 输入 root 密码（在 docker-compose.prod.yml 中配置的）
+
+# 创建数据库和用户
+CREATE DATABASE IF NOT EXISTS barhop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'barhop_user'@'%' IDENTIFIED BY '你的密码';
+GRANT ALL PRIVILEGES ON barhop.* TO 'barhop_user'@'%';
+FLUSH PRIVILEGES;
+
+# 导入数据（如果你有 SQL 文件）
+# exit
+# docker exec -i barhop-mysql mysql -u barhop_user -p barhop < /opt/BarHop/server/init.sql
+```
+
+#### 6.4 验证服务
+
+```bash
+# 测试 API
+curl http://localhost:3000/api/bars/nearby -X POST -H "Content-Type: application/json" -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+
+# 应该返回：{"code":0,"data":[...]}
+```
+
+---
+
+### Step 7: 配置 Nginx 反向代理
+
+#### 7.1 配置域名解析
+
+**在腾讯云域名管理页面操作**：
+
+| 记录类型 | 主机记录 | 记录值 | TTL |
+|---------|---------|--------|-----|
+| A | @ | 你的服务器IP | 600 |
+| A | www | 你的服务器IP | 600 |
+
+#### 7.2 配置 Nginx
+
+```bash
+# 复制配置文件
+sudo cp /opt/BarHop/nginx/conf.d/barhop.conf /etc/nginx/sites-available/barhop
+
+# 修改域名
+sudo vim /etc/nginx/sites-available/barhop
+```
+
+**修改以下内容**：
+```nginx
+server_name 你的域名.com www.你的域名.com;
+
+# 修改上传目录路径
+location /uploads/ {
+    alias /opt/BarHop/server/uploads/;
+}
+```
+
+#### 7.3 启用 Nginx 配置
+
+```bash
+# 创建软链接
+sudo ln -s /etc/nginx/sites-available/barhop /etc/nginx/sites-enabled/
+
+# 测试配置
+sudo nginx -t
+
+# 重启 Nginx
+sudo systemctl restart nginx
+
+# 验证
+curl http://你的域名.com/api/bars/nearby -X POST -H "Content-Type: application/json" -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+```
+
+---
+
+### Step 8: 申请和配置 HTTPS 证书
+
+#### 8.1 使用 Certbot 申请 Let's Encrypt 免费证书
+
+```bash
+# 安装 Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# 申请证书（自动配置 Nginx）
+sudo certbot --nginx -d 你的域名.com -d www.你的域名.com
+
+# 按提示操作：
+# 1. 输入邮箱（用于接收到期提醒）
+# 2. 同意服务条款
+# 3. 选择是否强制 HTTPS（选 2: 强制）
+```
+
+#### 8.2 自动续期
+
+```bash
+# 测试续期
+sudo certbot renew --dry-run
+
+# 添加定时任务
+sudo crontab -e
+```
+
+**添加一行**：
+```
+0 0 1 * * certbot renew --quiet  # 每月1号凌晨检查续期
+```
+
+#### 8.3 验证 HTTPS
+
+```bash
+curl https://你的域名.com/api/bars/nearby -X POST -H "Content-Type: application/json" -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+
+# 应该返回 HTTPS 正常响应
+```
+
+---
+
+## 四、第三阶段：微信小程序配置
+
+### Step 9: 微信公众平台配置
+
+#### 9.1 获取小程序凭证
+
+**访问**：[mp.weixin.qq.com](https://mp.weixin.qq.com) → 开发管理 → 开发设置
+
+**记录以下信息**：
+```
+AppID：wxXXXXXXXXXXXXXXXX
+AppSecret：点击"重置"按钮生成（请妥善保管！）
+```
+
+#### 9.2 配置服务器域名
+
+**在"开发设置"页面，找到"服务器域名"区域**：
+
+```
+request 合法域名：https://你的域名.com
+uploadFile 合法域名：https://你的域名.com
+downloadFile 合法域名：https://你的域名.com
+```
+
+**⚠️ 注意**：
+- 必须填写 HTTPS 开头
+- 不能带端口号
+- 必须是备案通过的域名
+
+#### 9.3 配置服务器端的微信凭证
+
+```bash
+# 在服务器上修改 .env
+vim /opt/BarHop/.env
+
+# 填入 AppID 和 AppSecret
+WECHAT_APPID=wxXXXXXXXXXXXXXXXX
+WECHAT_SECRET=你的AppSecret
+```
+
+---
+
+### Step 10: 修改小程序前端生产配置
+
+#### 10.1 修改 API 地址
+
+**修改**：`miniprogram/config/index.js`
+
+```javascript
+const config = {
+  // 生产环境配置
+  API_BASE_URL: 'https://你的域名.com',
+  UPLOAD_URL: 'https://你的域名.com/api/upload/image',
+  // ...其他配置
+};
+```
+
+#### 10.2 关闭调试模式
+
+**修改**：`miniprogram/app.js`
+
+```javascript
+// 确保没有开启 mock 模式
+globalData: {
+  useMock: false,  // 必须是 false
+  // ...
+}
+```
+
+#### 10.3 在开发者工具测试
+
+1. 打开微信开发者工具 → 导入项目
+2. 确认 AppID 正确
+3. 点击 **详情** → 本地设置
+4. **取消勾选** "不校验合法域名..."（因为现在用真域名）
+5. 编译运行，测试所有功能
+
+---
+
+### Step 11: 完整联调测试
+
+#### 11.1 功能测试清单
+
+| 功能 | 测试点 | 结果 |
+|------|--------|------|
+| 首页加载 | 能获取酒吧列表 | ⬜ |
+| 分类筛选 | 切换分类正常 | ⬜ |
+| 搜索功能 | 关键词搜索正常 | ⬜ |
+| 详情页 | 酒吧信息完整 | ⬜ |
+| 图片加载 | 所有图片显示正常 | ⬜ |
+| 登录 | 微信登录正常 | ⬜ |
+| 评价提交 | 带图评价提交成功 | ⬜ |
+| 评价列表 | 能看到所有评价 | ⬜ |
+| 删除评价 | 自己的评价可删除 | ⬜ |
+| 收藏功能 | 收藏/取消正常 | ⬜ |
+| 收藏列表 | 收藏页显示正常 | ⬜ |
+| 个人信息 | 头像昵称显示 | ⬜ |
+| 评分显示 | 评分数字正确 | ⬜ |
+
+#### 11.2 测试命令
+
+```bash
+# 在服务器上检查 API
+curl -X POST https://你的域名.com/api/bars/nearby \
+  -H "Content-Type: application/json" \
+  -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+
+# 检查服务器日志
+docker compose -f docker-compose.prod.yml logs --tail 100
+
+# 检查 Nginx 日志
+sudo tail -f /var/log/nginx/access.log
+sudo tail -f /var/log/nginx/error.log
+```
+
+---
+
+## 五、第四阶段：小程序发布
+
+### Step 12: 小程序提交审核和发布
+
+#### 12.1 上传代码
+
+1. 微信开发者工具 → 右上角点击版本号
+2. **填写版本号**：如 `1.0.0`
+3. **填写备注**：如 "首次发布"
+4. 点击 **上传** 按钮
+
+#### 12.2 设置体验版（可选，推荐）
+
+1. 登录 [mp.weixin.qq.com](https://mp.weixin.qq.com)
+2. 版本管理 → 开发版本 → 点击"选为体验版"
+3. 设置体验成员（自己和朋友）
+4. 在微信搜索小程序体验
+
+#### 12.3 提交审核
+
+1. 版本管理 → 待审核版本 → 点击"提交审核"
+2. **填写审核信息**：
+   ```
+   服务类目：生活服务 → 餐饮
+   版本描述：BarHop 是一款酒吧探索与评价小程序
+   测试账号：如果需要登录，提供测试账号
+   ```
+3. **上传功能截图**：
+   - 首页截图
+   - 详情页截图
+   - 评价功能截图
+4. **填写隐私协议**：
+   - 说明收集哪些信息（头像、昵称、位置、openid）
+   - 说明信息用途
+5. 提交审核
+
+#### 12.4 等待审核
+
+| 情况 | 时间 | 说明 |
+|------|------|------|
+| 个人开发者 | 1-7 天 | 可能被打回要求补充资料 |
+| 企业开发者 | 1-3 天 | 审核较快 |
+
+**审核被打回的常见原因**：
+- ❌ 类目选错 → 选"生活服务"或"休闲娱乐"
+- ❌ 功能不完整 → 确保首页、详情、评价等核心功能都可用
+- ❌ 描述不清 → 详细说明小程序的功能和价值
+- ❌ 没有隐私协议 → 必须声明收集的用户信息
+
+#### 12.5 发布上线
+
+审核通过后：
+1. 版本管理 → 审核版本 → 点击"发布"
+2. 选择发布方式：
+   - **全量发布**：所有用户立即更新
+   - **灰度发布**：逐步推送给用户（推荐）
+3. 发布完成！
+
+---
+
+## 六、运营和维护
+
+### 日常运维命令
+
+```bash
+# 查看服务状态
+docker compose -f /opt/BarHop/docker-compose.prod.yml ps
+
+# 查看日志
+docker compose -f /opt/BarHop/docker-compose.prod.yml logs -f --tail 200
+
+# 重启服务
+docker compose -f /opt/BarHop/docker-compose.prod.yml restart
+
+# 更新代码
+cd /opt/BarHop
+git pull
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 数据库备份
+docker exec barhop-mysql mysqldump -u barhop_user -p密码 barhop > /opt/barhop-backup-$(date +%Y%m%d).sql
+
+# 恢复数据
+docker exec -i barhop-mysql mysql -u barhop_user -p密码 barhop < /opt/barhop-backup-20260803.sql
+```
+
+### 紧急情况处理
+
+```bash
+# 服务挂了？
+docker compose -f /opt/BarHop/docker-compose.prod.yml up -d
+
+# MySQL 挂了？
+docker compose -f /opt/BarHop/docker-compose.prod.yml restart mysql
+
+# 磁盘满了？
+df -h  # 查看磁盘使用
+docker system prune -a  # 清理无用镜像
+
+# HTTPS 证书过期？
+sudo certbot renew
+sudo systemctl restart nginx
+```
+
+### 日志位置
+
+| 服务 | 日志路径 |
+|------|---------|
+| Node.js | `docker compose logs app` |
+| Nginx 访问日志 | `/var/log/nginx/access.log` |
+| Nginx 错误日志 | `/var/log/nginx/error.log` |
+| MySQL | `docker compose logs mysql` |
+| Redis | `docker compose logs redis` |
+
+### 健康检查
+
+```bash
+# 检查服务是否正常
+curl -s -o /dev/null -w "%{http_code}" https://你的域名.com/api/bars/nearby -X POST -H "Content-Type: application/json" -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+# 返回 200 表示正常
+
+# 检查磁盘空间
+df -h
+
+# 检查内存使用
+free -h
+
+# 检查 Docker 容器状态
+docker ps
+```
+
+### 自动备份方案
+
+```bash
+# 创建备份脚本
+sudo vim /opt/backup.sh
+```
+
+**内容**：
 ```bash
 #!/bin/bash
-# BarHop 自动备份脚本
-
-# 配置
-BACKUP_DIR="/opt/backups"
-PROJECT_DIR="/opt/BarHop"
+BACKUP_DIR=/opt/backups
 DATE=$(date +%Y%m%d_%H%M%S)
-RETENTION_DAYS=7  # 保留最近 7 天的备份
-
-# 从 .env 读取密码
-source $PROJECT_DIR/.env
-
-# 创建备份目录
 mkdir -p $BACKUP_DIR
 
-echo "=========================================="
-echo "[$(DATE)] 开始备份..."
-echo "=========================================="
+# 备份 MySQL
+docker exec barhop-mysql mysqldump -u barhop_user -p密码 barhop > $BACKUP_DIR/mysql_$DATE.sql
 
-# 1. 备份 MySQL 数据库
-echo "→ 备份 MySQL 数据库..."
-docker exec barhop-mysql mysqldump \
-    -u root -p${MYSQL_ROOT_PASSWORD} \
-    --single-transaction \
-    --routines \
-    --triggers \
-    barhop | gzip > $BACKUP_DIR/mysql_${DATE}.sql.gz
+# 备份上传的文件
+tar -czf $BACKUP_DIR/uploads_$DATE.tar.gz /opt/BarHop/server/uploads/
 
-if [ $? -eq 0 ]; then
-    echo "  ✓ MySQL 备份成功: mysql_${DATE}.sql.gz"
-else
-    echo "  ✗ MySQL 备份失败!"
-fi
+# 备份配置文件
+tar -czf $BACKUP_DIR/config_$DATE.tar.gz /opt/BarHop/.env /opt/BarHop/docker-compose.prod.yml
 
-# 2. 备份 Redis 数据
-echo "→ 备份 Redis..."
-docker exec barhop-redis redis-cli -a ${REDIS_PASSWORD} BGSAVE 2>/dev/null
-sleep 2  # 等待 BGSAVE 完成
-docker cp barhop-redis:/data/dump.rdb $BACKUP_DIR/redis_${DATE}.rdb 2>/dev/null
+# 删除7天前的备份
+find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
+find $BACKUP_DIR -name "*.tar.gz" -mtime +7 -delete
 
-if [ $? -eq 0 ]; then
-    echo "  ✓ Redis 备份成功: redis_${DATE}.rdb"
-else
-    echo "  ✗ Redis 备份失败!"
-fi
-
-# 3. 备份上传的图片文件
-echo "→ 备份上传文件..."
-tar -czf $BACKUP_DIR/uploads_${DATE}.tar.gz \
-    -C $PROJECT_DIR server/uploads/ 2>/dev/null
-
-if [ $? -eq 0 ]; then
-    echo "  ✓ 上传文件备份成功: uploads_${DATE}.tar.gz"
-else
-    echo "  ✗ 上传文件备份失败!"
-fi
-
-# 4. 备份配置文件
-echo "→ 备份配置文件..."
-tar -czf $BACKUP_DIR/config_${DATE}.tar.gz \
-    -C $PROJECT_DIR .env nginx/ 2>/dev/null
-
-if [ $? -eq 0 ]; then
-    echo "  ✓ 配置文件备份成功: config_${DATE}.tar.gz"
-else
-    echo "  ✗ 配置文件备份失败!"
-fi
-
-# 5. 清理过期备份
-echo "→ 清理 $RETENTION_DAYS 天前的备份..."
-find $BACKUP_DIR -name "*.gz" -mtime +$RETENTION_DAYS -delete
-find $BACKUP_DIR -name "*.rdb" -mtime +$RETENTION_DAYS -delete
-
-# 6. 显示备份结果
-echo ""
-echo "=========================================="
-echo "备份完成!"
-echo "备份目录: $BACKUP_DIR"
-echo "备份文件:"
-ls -lh $BACKUP_DIR/ | tail -n 10
-echo "=========================================="
+echo "备份完成: $DATE"
 ```
-
-### 13.2 配置自动执行
 
 ```bash
 # 赋予执行权限
 sudo chmod +x /opt/backup.sh
 
-# 测试运行
-sudo /opt/backup.sh
-
-# 添加定时任务（每天凌晨 3 点自动备份）
+# 添加定时任务（每天凌晨3点备份）
 sudo crontab -e
-# 添加以下行：
-0 3 * * * /opt/backup.sh >> /var/log/barhop-backup.log 2>&1
-```
-
-### 13.3 恢复数据
-
-```bash
-# 恢复 MySQL
-gunzip < /opt/backups/mysql_20260731_030000.sql.gz | \
-    docker exec -i barhop-mysql mysql -u root -p密码 barhop
-
-# 恢复上传文件
-cd /opt/BarHop
-tar -xzf /opt/backups/uploads_20260731_030000.tar.gz
+# 添加：
+0 3 * * * /opt/backup.sh >> /var/log/backup.log 2>&1
 ```
 
 ---
 
-## 十四、持续集成/持续部署（CI/CD）
+## 七、执行路线图
 
-项目已配置 GitHub Actions，见 [.github/workflows/deploy.yml](file:///e:/coding/selfCoding/BarHop/.github/workflows/deploy.yml)。
-
-### 14.1 自动构建 Docker 镜像
-
-当你 push 代码到 GitHub `main` 分支时，GitHub Actions 会自动：
-
-1. 构建 Docker 镜像
-2. 推送到 GitHub Container Registry (ghcr.io)
-3. 可在 `https://github.com/你的用户名/BarHop/pkgs/container/barhop` 查看
-
-### 14.2 配置服务器自动部署
-
-在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加：
-
-| Secret 名 | 值 |
-|-----------|-----|
-| `SSH_HOST` | 服务器 IP |
-| `SSH_USER` | SSH 用户名 |
-| `SSH_KEY` | SSH 私钥（完整内容） |
-
-然后取消 `deploy.yml` 中最后一段的注释：
-
-```yaml
-      - name: Deploy to server via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            cd /opt/BarHop
-            git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build server
-            docker image prune -f
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  第1天：购买服务器 + 域名 + 提交备案                                      │
+│  ↓                                                                      │
+│  第1-20天：备案等待期间，完成 Step 3-8（服务器初始化 + 后端部署）            │
+│  ↓                                                                      │
+│  备案通过：完成 Step 9-10（微信配置 + 前端修改）                            │
+│  ↓                                                                      │
+│  第N天：完成 Step 11（联调测试）                                          │
+│  ↓                                                                      │
+│  第N+1天：完成 Step 12（提交审核）                                        │
+│  ↓                                                                      │
+│  审核通过：发布上线！🎉                                                    │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 14.3 手动触发部署
+### 备案期间测试方法
 
-```bash
-# 在 GitHub 仓库页面
-# Actions → Deploy BarHop → Run workflow
-```
+备案期间可以用 IP 地址在开发者工具调试：
+
+1. 微信开发者工具 → 右上角 **详情** → **本地设置**
+2. 勾选 ✅ **不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书**
+3. 前端代码里 API 地址用 `http://你的IP:3000`
+4. 可以正常开发调试
+
+**但是发布上线前必须改成 HTTPS + 域名**，否则审核会被拒。
 
 ---
 
-## 十五、性能优化建议
+## 八、费用总结
 
-### 15.1 Docker 资源限制
-
-编辑 `docker-compose.prod.yml`，为每个服务添加资源限制：
-
-```yaml
-  mysql:
-    # ... 其他配置
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 512M
-
-  server:
-    # ... 其他配置
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-```
-
-### 15.2 MySQL 优化
-
-在 `docker-compose.prod.yml` 的 MySQL 命令中添加参数：
-
-```yaml
-  mysql:
-    command: >
-      --default-authentication-plugin=mysql_native_password
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
-      --innodb-buffer-pool-size=512M
-      --max-connections=100
-      --slow-query-log=ON
-      --long-query-time=2
-```
-
-### 15.3 Nginx 性能优化
-
-在 `nginx/conf.d/barhop.conf` 的 http 块或 server 块中添加：
-
-```nginx
-# 开启 gzip 压缩
-gzip on;
-gzip_vary on;
-gzip_min_length 1024;
-gzip_types text/plain text/css application/json application/javascript;
-
-# 开启缓存
-open_file_cache max=1000 inactive=20s;
-open_file_cache_valid 30s;
-open_file_cache_min_uses 2;
-
-# 上传文件缓存
-location /uploads/ {
-    # ... 原有配置
-    expires 30d;
-    add_header Cache-Control "public, immutable";
-}
-```
-
-### 15.4 Node.js 性能优化
-
-在 `server/Dockerfile` 中设置：
-
-```dockerfile
-# 启用 Node.js 生产模式优化
-ENV NODE_ENV=production
-ENV NODE_OPTIONS="--max-old-space-size=512"
-```
+| 项目 | 费用 | 周期 |
+|------|------|------|
+| 腾讯云轻量服务器 | ¥60-80 | 月 |
+| 域名 | ¥30-60 | 年 |
+| 微信小程序认证 | ¥0（个人）/ ¥300（企业）| 年 |
+| HTTPS 证书 | 免费 | - |
+| **月均总成本** | **¥65-85** | - |
 
 ---
 
-## 十六、故障排查 FAQ
+## 九、故障排查 FAQ
 
 ### Q1: 端口被占用？
 
 ```bash
-# 查看占用端口的进程
-sudo lsof -i :80
-sudo lsof -i :443
-sudo lsof -i :3000
+# 查看占用进程
+sudo lsof -i:3000
+sudo lsof -i:80
 
-# 或用 netstat
-sudo netstat -tlnp | grep :80
-
-# 终止进程（替换 PID）
+# 杀死进程
 sudo kill -9 PID
-
-# 如果是系统进程占用 80（如 Apache）
-sudo systemctl stop apache2
-sudo systemctl disable apache2
 ```
 
-### Q2: Docker 容器无法启动？
+### Q2: Docker 容器启动失败？
 
 ```bash
-# 查看所有容器（包括已停止的）
-docker compose -f docker-compose.prod.yml ps -a
+# 查看详细日志
+docker compose -f docker-compose.prod.yml logs app
+docker compose -f docker-compose.prod.yml logs mysql
 
-# 查看启动失败的日志
-docker compose -f docker-compose.prod.yml logs server
+# 检查配置
+docker compose -f docker-compose.prod.yml config
 
-# 常见原因：
-# 1. .env 文件配置错误 - 检查必填项
-# 2. 数据库连接失败 - 检查密码是否正确
-# 3. 端口冲突 - 修改端口映射
-
-# 重新构建（清除缓存）
-docker compose -f docker-compose.prod.yml build --no-cache server
-docker compose -f docker-compose.prod.yml up -d
+# 重新构建
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 ### Q3: MySQL 连接失败？
 
 ```bash
-# 1. 检查 MySQL 容器状态
-docker ps | grep mysql
+# 检查 MySQL 状态
+docker exec -it barhop-mysql mysqladmin -u root -p status
 
-# 2. 查看 MySQL 日志
-docker logs barhop-mysql
+# 检查用户权限
+docker exec -it barhop-mysql mysql -uroot -p -e "SELECT user, host FROM mysql.user;"
 
-# 3. 检查密码是否正确
-docker exec -it barhop-mysql mysql -u barhop_user -p
-
-# 4. 如果忘记密码，重置：
-docker exec -it barhop-mysql mysql -u root -p
-ALTER USER 'barhop_user'@'%' IDENTIFIED BY '新密码';
-FLUSH PRIVILEGES;
+# 检查防火墙
+sudo ufw status
 ```
 
-### Q4: 微信小程序无法连接服务器？
+### Q4: 微信小程序连接不上服务器？
 
-**检查清单**：
+1. 检查服务器域名是否配置正确
+2. 确认 HTTPS 证书有效
+3. 确认域名已备案
+4. 检查 Nginx 配置是否正确
+5. 确认 443 端口已开放
 
-1. ✅ 服务器必须是 HTTPS（不能是 HTTP）
-2. ✅ 服务器域名已添加到微信公众平台的「服务器域名」
-3. ✅ `miniprogram/utils/config.js` 的 `API_BASE_URL` 已更新
-4. ✅ 服务器端口已开放（80、443）
-5. ✅ 防火墙未阻止请求
-
-**调试方法**：
+### Q5: 图片显示不出来？
 
 ```bash
-# 在服务器上测试
-curl https://your-domain.com/api/bars/nearby \
-    -X POST \
-    -H "Content-Type: application/json" \
-    -d '{"lat": 34.2525, "lng": 108.9444}'
+# 检查上传目录权限
+sudo chown -R www-data:www-data /opt/BarHop/server/uploads
+sudo chmod -R 755 /opt/BarHop/server/uploads
+
+# 检查 Nginx 静态文件配置
+sudo nginx -t
 ```
 
-### Q5: 图片上传后无法显示？
+### Q6: 磁盘空间不足？
 
 ```bash
-# 1. 检查上传目录权限
-ls -la /opt/BarHop/server/uploads/
-
-# 2. 检查 Nginx 静态文件服务
-curl -I https://your-domain.com/uploads/test.jpg
-
-# 3. 检查 .env 中的 SERVER_BASE_URL 配置
-# 必须是完整的 https://your-domain.com
-```
-
-### Q6: 服务器磁盘空间不足？
-
-```bash
-# 查看磁盘使用情况
+# 查看磁盘使用
 df -h
 
-# 查看 Docker 占用空间
-docker system df
-
-# 清理未使用的镜像和容器
+# 清理 Docker 无用资源
 docker system prune -a
 
-# 清理 Docker 构建缓存
-docker builder prune
-
-# 查看大文件
-sudo du -sh /opt/* | sort -rh | head -10
-
 # 清理旧日志
-sudo find /var/log -name "*.gz" -mtime +30 -delete
+sudo truncate -s 0 /var/log/nginx/access.log
+sudo truncate -s 0 /var/log/nginx/error.log
+
+# 清理旧备份
+find /opt/backups -mtime +30 -delete
 ```
 
-### Q7: 如何查看实时访问日志？
+### Q7: 查看实时日志
 
 ```bash
-# 实时查看 Nginx 访问日志
-docker exec barhop-nginx tail -f /var/log/nginx/access.log
+# 实时查看所有服务日志
+docker compose -f docker-compose.prod.yml logs -f
 
-# 实时查看 Nginx 错误日志
-docker exec barhop-nginx tail -f /var/log/nginx/error.log
+# 只看 app 日志
+docker compose -f docker-compose.prod.yml logs -f app
 
-# 实时查看 Node.js 日志
-docker compose -f docker-compose.prod.yml logs -f server
+# 只看最近 100 行
+docker compose -f docker-compose.prod.yml logs --tail 100 app
 ```
 
-### Q8: 如何完全重置环境？
+### Q8: 完全重置环境
 
 ```bash
-# ⚠️ 警告：会删除所有数据！
-
-# 1. 停止并删除所有容器和数据卷
+# 停止所有服务
 docker compose -f docker-compose.prod.yml down -v
 
-# 2. 删除所有镜像
+# 删除所有镜像
 docker rmi $(docker images -q) -f
 
-# 3. 清理 Docker 系统
-docker system prune -a --volumes
-
-# 4. 重新启动
+# 重新部署
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 ---
 
-## 附录：项目文件结构
+## 十、性能优化建议
 
+### Docker 资源限制
+
+```yaml
+# docker-compose.prod.yml
+services:
+  app:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          memory: 256M
 ```
-BarHop/
-├── miniprogram/                  # 微信小程序前端
-│   ├── pages/                   # 页面
-│   │   ├── index/              # 首页
-│   │   ├── detail/             # 详情页
-│   │   ├── favorites/          # 收藏页
-│   │   ├── review/             # 评价页
-│   │   └── profile/            # 个人中心
-│   ├── utils/                  # 工具函数
-│   │   ├── request.js          # 网络请求封装
-│   │   ├── config.js           # 全局配置
-│   │   └── ...
-│   ├── images/                 # 图片资源
-│   ├── app.js                  # 小程序入口
-│   └── app.json                # 小程序配置
-├── server/                       # Node.js 后端
-│   ├── config/                  # 配置
-│   ├── controllers/            # 控制器
-│   ├── routes/                  # 路由
-│   ├── services/                # 业务服务
-│   ├── middlewares/             # 中间件
-│   ├── utils/                   # 工具
-│   ├── Dockerfile               # Docker 镜像配置
-│   └── package.json             # 依赖配置
-├── nginx/                        # Nginx 配置
-│   └── conf.d/
-│       └── barhop.conf          # 反向代理配置
-├── database/                      # 数据库
-│   └── schema.sql              # 表结构
-├── .github/workflows/            # CI/CD
-│   └── deploy.yml               # GitHub Actions
-├── docker-compose.yml           # 开发环境（仅 MySQL + Redis）
-├── docker-compose.prod.yml      # 生产环境（完整服务）
-├── .env.example                 # 环境变量模板
-├── .gitignore                   # Git 忽略规则
-└── DEPLOY.md                    # 本部署文档
+
+### MySQL 调优
+
+```ini
+# my.cnf
+[mysqld]
+innodb_buffer_pool_size = 256M
+max_connections = 100
+innodb_log_file_size = 64M
+```
+
+### Nginx Gzip 压缩
+
+```nginx
+# /etc/nginx/nginx.conf
+gzip on;
+gzip_types text/plain text/css application/json application/javascript;
+gzip_min_length 1000;
+```
+
+### Node.js 内存优化
+
+```javascript
+// 设置环境变量
+NODE_OPTIONS=--max-old-space-size=512
 ```
 
 ---
 
-## 附录：常用命令速查表
+## 十一、常用命令速查表
 
-| 操作 | 命令 |
-|------|------|
-| 启动所有服务 | `docker compose -f docker-compose.prod.yml up -d` |
-| 停止所有服务 | `docker compose -f docker-compose.prod.yml down` |
-| 重启服务 | `docker compose -f docker-compose.prod.yml restart server` |
-| 查看日志 | `docker compose -f docker-compose.prod.yml logs -f server` |
-| 更新代码 | `git pull && docker compose -f docker-compose.prod.yml up -d --build server` |
-| 查看状态 | `docker compose -f docker-compose.prod.yml ps` |
-| 进入 MySQL | `docker exec -it barhop-mysql mysql -u barhop_user -p` |
-| 进入 Redis | `docker exec -it barhop-redis redis-cli -a 密码` |
-| 备份数据库 | `docker exec barhop-mysql mysqldump -u root -p密码 barhop > backup.sql` |
-| 清理缓存 | `docker exec barhop-redis redis-cli -a 密码 FLUSHDB` |
-| 查看 Docker 资源 | `docker stats` |
-| 查看磁盘 | `df -h` |
+```bash
+# === Docker ===
+docker compose -f docker-compose.prod.yml up -d --build   # 启动所有服务
+docker compose -f docker-compose.prod.yml ps               # 查看服务状态
+docker compose -f docker-compose.prod.yml logs -f         # 查看日志
+docker compose -f docker-compose.prod.yml restart         # 重启服务
+docker compose -f docker-compose.prod.yml down             # 停止服务
+docker compose -f docker-compose.prod.yml down -v         # 停止并删除数据卷
 
----
+# === 代码更新 ===
+cd /opt/BarHop && git pull                                 # 拉取最新代码
+docker compose -f docker-compose.prod.yml up -d --build   # 重新构建并启动
 
-**文档版本**：v2.0  
-**更新日期**：2026-07-31  
-**适用系统**：Ubuntu 22.04 LTS / 其他 Linux 发行版  
-**如有问题**：请提交 [GitHub Issues](https://github.com/你的用户名/BarHop/issues)
+# === 数据库 ===
+docker exec -it barhop-mysql mysql -u root -p              # 进入 MySQL
+docker exec barhop-mysql mysqldump -u root -p密码 barhop > backup.sql  # 备份
+docker exec -i barhop-mysql mysql -u root -p密码 barhop < backup.sql   # 恢复
+
+# === Redis ===
+docker exec -it barhop-redis redis-cli                    # 进入 Redis
+docker exec barhop-redis redis-cli FLUSHALL               # 清空缓存
+
+# === Nginx ===
+sudo nginx -t                                              # 测试配置
+sudo systemctl restart nginx                              # 重启 Nginx
+sudo tail -f /var/log/nginx/access.log                    # 查看访问日志
+
+# === HTTPS ===
+sudo certbot renew                                        # 续期证书
+sudo certbot certificates                                 # 查看证书
+
+# === 系统 ===
+sudo ufw status                                           # 防火墙状态
+df -h                                                     # 磁盘使用
+free -h                                                    # 内存使用
+htop                                                       # 进程监控
+```

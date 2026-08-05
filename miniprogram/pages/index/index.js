@@ -208,17 +208,31 @@ Page({
       keyword: searchKeyword,
       type: selectedCategory
     }).then(res => {
-      const allBars = imageUtil.ensureBarListPhotos(res.data || []);
+      let allBars = imageUtil.ensureBarListPhotos(res.data || []);
+      // 处理评分显示：高德 > 用户评分 > 暂无
+      allBars = allBars.map(bar => {
+        const amapRating = parseFloat(bar.avg_rating) || 0;
+        const userRating = parseFloat(bar.user_rating) || 0;
+        const userReviewCount = parseInt(bar.user_review_count) || 0;
+        if (amapRating > 0) {
+          bar.display_rating = amapRating.toFixed(1);
+        } else if (userReviewCount > 0 && userRating > 0) {
+          bar.display_rating = userRating.toFixed(1);
+        } else {
+          bar.display_rating = '';
+        }
+        return bar;
+      });
       const sortedBars = this.sortBars(allBars, sortType);
       const barMarkers = this.createMarkers(sortedBars);
-      
+
       // 合并用户位置marker和酒吧marker
       const markers = userMarker ? [...barMarkers, userMarker] : barMarkers;
-      
+
       // 默认只展示前10条
       const displayCount = Math.min(10, sortedBars.length);
       const displayBars = sortedBars.slice(0, displayCount);
-      
+
       this.setData({
         bars: sortedBars,
         allBars: sortedBars,
@@ -281,29 +295,51 @@ Page({
     if (!bars || bars.length === 0) {
       return [];
     }
-    
-    return bars.map((bar, index) => ({
-      id: index + 1,
-      barId: bar.id,
-      barIndex: index,
-      latitude: bar.lat,
-      longitude: bar.lng,
-      iconPath: '/images/pin.png',
-      width: 32,
-      height: 40,
-      callout: {
-        content: bar.name,
-        color: '#FFFFFF',
-        fontSize: 13,
-        borderRadius: 12,
-        padding: 8,
-        display: 'BYCLICK',
-        bgColor: 'rgba(233, 69, 96, 0.95)',
-        textAlign: 'center',
-        borderWidth: 0,
-        borderColor: 'rgba(233, 69, 96, 0.95)'
+
+    // 记录已使用的经纬度，用于检测重叠
+    const usedCoords = new Set();
+
+    return bars.map((bar, index) => {
+      // 确保经纬度是数字类型
+      const lat = parseFloat(bar.lat);
+      const lng = parseFloat(bar.lng);
+      if (isNaN(lat) || isNaN(lng)) return null;
+
+      // 检测重叠：如果同一位置有多个酒吧，添加微小偏移
+      const coordKey = `${lat.toFixed(6)}_${lng.toFixed(6)}`;
+      let finalLat = lat;
+      let finalLng = lng;
+      if (usedCoords.has(coordKey)) {
+        // 添加微小偏移（约10-20米），避免标记完全重叠
+        const offset = 0.00015 * (Math.floor(Math.random() * 3) + 1);
+        finalLat = lat + offset;
+        finalLng = lng + offset;
       }
-    })).filter(marker => marker.latitude && marker.longitude);
+      usedCoords.add(coordKey);
+
+      return {
+        id: index + 1,
+        barId: bar.id,
+        barIndex: index,
+        latitude: finalLat,
+        longitude: finalLng,
+        iconPath: '/images/pin.png',
+        width: 32,
+        height: 40,
+        callout: {
+          content: bar.name,
+          color: '#FFFFFF',
+          fontSize: 13,
+          borderRadius: 12,
+          padding: 8,
+          display: 'BYCLICK',
+          bgColor: 'rgba(233, 69, 96, 0.95)',
+          textAlign: 'center',
+          borderWidth: 0,
+          borderColor: 'rgba(233, 69, 96, 0.95)'
+        }
+      };
+    }).filter(marker => marker !== null);
   },
 
   onSearchInput: function (e) {
@@ -440,20 +476,14 @@ Page({
     wx.navigateTo({ url: '/pages/profile/profile' });
   },
 
-  onChooseAvatarTap: function () {
-    wx.chooseAvatar({
-      success: (res) => {
-        const avatar = res.avatarUrl;
-        const userInfo = { ...this.data.userInfo, avatar };
-        this.setData({ userInfo });
-        app.updateUserInfo({ avatar });
-        this.syncUserToBackend();
-        wx.showToast({ title: '头像已更新', icon: 'none' });
-      },
-      fail: (err) => {
-        console.log('[Index] 选择头像取消或失败:', err);
-      }
-    });
+  onChooseAvatar: function (e) {
+    if (!e.detail.avatarUrl) return;
+    const avatar = e.detail.avatarUrl;
+    const userInfo = { ...this.data.userInfo, avatar };
+    this.setData({ userInfo });
+    app.updateUserInfo({ avatar });
+    this.syncUserToBackend();
+    wx.showToast({ title: '头像已更新', icon: 'none' });
   },
 
   onNicknameChange: function (e) {

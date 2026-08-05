@@ -29,6 +29,7 @@
           <view class="rating" wx:if="{{item.has_rating}}">
             <text class="star">★</text>
             <text class="score">{{item.avg_rating}}</text>
+            <text class="rating-tag" wx:if="{{item.rating_source === 'user'}}">用户</text>
           </view>
           <view class="rating no-rating" wx:else>
             <text class="score">暂无</text>
@@ -37,10 +38,12 @@
         <view class="bar-tags">
           <text class="tag">{{item.tags}}</text>
         </view>
-        <view class="bar-address">{{item.address}}</view>
-      </view>
-      <view class="favorite-btn" catchtap="toggleFavorite" data-id="{{item.id}}">
-        <image class="heart-icon" src="/images/favorite_active.png" mode="aspectFit" />
+        <view class="bar-bottom">
+          <text class="bar-address">{{item.address}}</text>
+          <view class="favorite-btn" catchtap="toggleFavorite" data-id="{{item.id}}">
+            <image class="heart-icon" src="/images/favorite_active.png" mode="aspectFit" />
+          </view>
+        </view>
       </view>
     </view>
   </view>
@@ -48,4 +51,6 @@
   <view class="loading" wx:if="{{loading}}">
     <text>加载中...</text>
   </view>
+
+  <view class="list-bottom-tip" wx:if="{{!loading && bars.length > 0}}">— 已经收藏完啦~ —</view>
 </view>

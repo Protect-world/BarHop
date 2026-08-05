@@ -71,7 +71,7 @@ Page({
       this.setData({
         bar,
         barName: bar.name || '未知酒馆',
-        barRating: (bar.avg_rating || 4.0).toFixed(1),
+        barRating: parseFloat(bar.avg_rating || 4.0).toFixed(1),
         barTags: bar.tags || '酒吧',
         barAddress: bar.address || '暂无地址',
         barHours: bar.hours || '暂无信息',
@@ -81,7 +81,7 @@ Page({
         loading: false,
         // 用户评分数据
         userRating: userRating.average || 0,
-        userRatingDisplay: userRating.average > 0 ? userRating.average.toFixed(1) : '--',
+        userRatingDisplay: userRating.average > 0 ? parseFloat(userRating.average).toFixed(1) : '--',
         userRatingCount: userRating.count || 0,
         dist5: dist['5'] || 0,
         dist4: dist['4'] || 0,
@@ -219,7 +219,7 @@ Page({
           const dist = data.summary.distribution || {};
           this.setData({
             userRating: data.summary.avg_rating || 0,
-            userRatingDisplay: data.summary.avg_rating > 0 ? data.summary.avg_rating.toFixed(1) : '--',
+            userRatingDisplay: data.summary.avg_rating > 0 ? parseFloat(data.summary.avg_rating).toFixed(1) : '--',
             userRatingCount: data.summary.count || 0,
             dist5: dist['5'] || 0,
             dist4: dist['4'] || 0,

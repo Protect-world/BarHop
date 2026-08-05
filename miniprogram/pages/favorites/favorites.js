@@ -52,7 +52,8 @@ Page({
           }
           
           // 处理评分显示
-          if (bar.avg_rating !== undefined && bar.avg_rating !== null) {
+          // 后端已按优先级返回：高德评分 > 用户评分 > null(暂无)
+          if (bar.avg_rating !== null && bar.avg_rating !== undefined && String(bar.avg_rating) !== '0.0') {
             bar.avg_rating = String(bar.avg_rating);
             bar.has_rating = true;
           } else {

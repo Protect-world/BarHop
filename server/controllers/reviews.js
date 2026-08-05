@@ -205,7 +205,8 @@ class ReviewsController {
   // 删除评价
   deleteReview = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const { user_id, role } = req.query;
+    // 同时支持 query 和 body 传参
+    const { user_id, role } = { ...req.query, ...req.body };
 
     const review = await db.query('SELECT bar_id, user_id FROM reviews WHERE id = ?', [id]);
     if (review.length === 0) {

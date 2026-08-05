@@ -35,6 +35,10 @@ const validators = {
 
   // 评价创建验证
   createReview: Joi.object({
+    user_id: Joi.string().required().messages({
+      'any.required': '缺少用户ID',
+      'string.empty': '用户ID不能为空'
+    }),
     bar_id: Joi.string().required().messages({
       'any.required': '缺少酒吧ID',
       'string.empty': '酒吧ID不能为空'

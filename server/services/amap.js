@@ -50,11 +50,13 @@ class AmapService {
     this.isProcessingQueue = false;
   }
 
-  async searchPoi(keyword, city = '', offset = 5) {
+  async searchPoi(keyword, city = '', offset = 5, retryCount = 0) {
     if (!this.key) {
       console.warn('[Amap] 未配置高德地图 Key');
       return [];
     }
+
+    const MAX_RETRIES = 2;
 
     return this.enqueueRequest(async () => {
       try {
@@ -72,8 +74,13 @@ class AmapService {
         if (response.data.status !== '1') {
           // 处理QPS超限错误
           if (response.data.info === 'CUQPS_HAS_EXCEEDED_THE_LIMIT') {
-            console.warn('[Amap] QPS超限，等待更长时间');
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const waitTime = 2000 * (retryCount + 1);
+            console.warn(`[Amap] POI搜索QPS超限（第${retryCount + 1}次），等待${waitTime}ms`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            
+            if (retryCount < MAX_RETRIES) {
+              return this.searchPoi(keyword, city, offset, retryCount + 1);
+            }
           } else {
             console.error('[Amap] POI搜索失败:', response.data.info);
           }
@@ -82,14 +89,21 @@ class AmapService {
 
         return response.data.pois || [];
       } catch (error) {
+        if (error.code === 'ECONNABORTED' && retryCount < MAX_RETRIES) {
+          console.warn(`[Amap] POI搜索超时（第${retryCount + 1}次）`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return this.searchPoi(keyword, city, offset, retryCount + 1);
+        }
         console.error('[Amap] POI搜索异常:', error.message);
         return [];
       }
     });
   }
 
-  async getPoiDetail(poiId) {
+  async getPoiDetail(poiId, retryCount = 0) {
     if (!this.key) return null;
+
+    const MAX_RETRIES = 2; // 最多重试2次
 
     return this.enqueueRequest(async () => {
       try {
@@ -104,8 +118,16 @@ class AmapService {
         
         if (response.data.status !== '1') {
           if (response.data.info === 'CUQPS_HAS_EXCEEDED_THE_LIMIT') {
-            console.warn('[Amap] QPS超限，等待更长时间');
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // QPS超限，等待更长时间后重试
+            const waitTime = 2000 * (retryCount + 1);
+            console.warn(`[Amap] QPS超限（第${retryCount + 1}次），等待${waitTime}ms后重试`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            
+            if (retryCount < MAX_RETRIES) {
+              return this.getPoiDetail(poiId, retryCount + 1);
+            }
+            console.warn(`[Amap] 达到最大重试次数，放弃: ${poiId}`);
+            return null;
           }
           return null;
         }
@@ -113,6 +135,12 @@ class AmapService {
         const pois = response.data.pois || [];
         return pois.length > 0 ? pois[0] : null;
       } catch (error) {
+        // 网络错误也进行重试
+        if (error.code === 'ECONNABORTED' && retryCount < MAX_RETRIES) {
+          console.warn(`[Amap] 请求超时（第${retryCount + 1}次）: ${poiId}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+          return this.getPoiDetail(poiId, retryCount + 1);
+        }
         console.error('[Amap] POI详情获取异常:', error.message);
         return null;
       }
@@ -122,7 +150,7 @@ class AmapService {
   async enrichBar(barName, city = '') {
     try {
       const pois = await this.searchPoi(barName, city, 1);
-      if (pois.length === 0) {
+      if (!pois || pois.length === 0) {
         return { photos: [], rating: 0 };
       }
 

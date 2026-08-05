@@ -99,6 +99,12 @@ function request(options) {
               return;
             }
 
+            // 安全检查：确保 res.data 存在
+            if (!res.data) {
+              reject({ code: -1, message: '服务器返回数据为空' });
+              return;
+            }
+
             if (res.data.code === 0) {
               resolve(res.data);
             } else {
@@ -206,7 +212,10 @@ const api = {
 
   // 收藏相关
   async getFavorites(params) {
+    // params: { user_id, bar_id? }
+    // bar_id 可选，用于检查某个酒吧是否被收藏
     const queryString = Object.entries(params || {})
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
       .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
       .join('&');
     return request({
@@ -215,20 +224,28 @@ const api = {
     });
   },
 
-  async addFavorite(barId) {
+  async addFavorite(data) {
+    // data: { user_id, bar_id }
     return request({
       url: '/api/favorites',
       method: 'POST',
-      data: { bar_id: barId }
+      data
     });
   },
 
-  async removeFavorite(barId) {
+  // 别名：removeFavorite = deleteFavorite
+  async removeFavorite(data) {
+    // data: { user_id, bar_id }
     return request({
-      url: `/api/favorites`,
+      url: '/api/favorites',
       method: 'DELETE',
-      data: { bar_id: barId }
+      data
     });
+  },
+
+  // 兼容别名
+  async deleteFavorite(data) {
+    return this.removeFavorite(data);
   },
 
   async checkFavorite(barId) {
@@ -247,6 +264,7 @@ const api = {
   },
 
   async createReview(data) {
+    // data: { user_id, bar_id, rating, content, images }
     return request({
       url: '/api/reviews',
       method: 'POST',
@@ -254,9 +272,15 @@ const api = {
     });
   },
 
-  async deleteReview(id) {
+  async deleteReview(id, params) {
+    // id: 评价ID
+    // params: { user_id } 用于权限验证
+    const queryString = params ? '?' + Object.entries(params)
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&') : '';
     return request({
-      url: `/api/reviews/${id}`,
+      url: `/api/reviews/${id}${queryString}`,
       method: 'DELETE'
     });
   },
@@ -268,13 +292,18 @@ const api = {
       wx.uploadFile({
         url: `${config.API_BASE_URL}/api/upload/image`,
         filePath,
-        name: 'file',
+        name: 'image',  // 与后端 multer.single('image') 对应
         header: token ? { 'Authorization': 'Bearer ' + token } : {},
         success: (res) => {
           try {
             const data = JSON.parse(res.data);
             if (data.code === 0) {
-              resolve(data.data);
+              // 拼接完整URL（如果是相对路径）
+              let url = data.data.url;
+              if (url && url.startsWith('/uploads/')) {
+                url = config.API_BASE_URL + url;
+              }
+              resolve({ ...data.data, url });
             } else {
               reject(data);
             }
@@ -310,9 +339,13 @@ const api = {
   }
 };
 
-module.exports = {
-  api,
+// 将 api 方法、底层 request 及辅助方法合并导出
+// 这样既能 const api = require('...'); api.getNearbyBars(...)
+// 也能 const request = require('...'); request.getFavorites(...)
+Object.assign(api, {
   request,
   batchRequest,
   cancelAll
-};
+});
+
+module.exports = api;
