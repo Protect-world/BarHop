@@ -144,6 +144,9 @@ const barService = {
     if (!bar) return null;
     return {
       ...bar,
+      // MySQL DECIMAL 默认返回字符串，前端 wx.openLocation 需要 Number 类型
+      lat: bar.lat !== null && bar.lat !== undefined ? parseFloat(bar.lat) : null,
+      lng: bar.lng !== null && bar.lng !== undefined ? parseFloat(bar.lng) : null,
       photos: urlService.parsePhotos(bar.photos)
     };
   },

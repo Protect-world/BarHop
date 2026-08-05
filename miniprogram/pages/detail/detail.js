@@ -126,12 +126,31 @@ Page({
       return;
     }
 
+    // 后端 lat/lng 可能是字符串（MySQL DECIMAL 默认返回字符串），需强制转为 Number
+    const latitude = parseFloat(bar.lat);
+    const longitude = parseFloat(bar.lng);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      wx.showToast({
+        title: '位置坐标无效',
+        icon: 'none'
+      });
+      return;
+    }
+
     wx.openLocation({
-      latitude: bar.lat,
-      longitude: bar.lng,
+      latitude: latitude,
+      longitude: longitude,
       name: bar.name,
       address: bar.address,
-      scale: 18
+      scale: 18,
+      fail: (err) => {
+        console.error('[Detail] openLocation 失败:', err);
+        wx.showToast({
+          title: '打开地图失败',
+          icon: 'none'
+        });
+      }
     });
   },
 
