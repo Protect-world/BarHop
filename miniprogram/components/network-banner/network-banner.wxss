@@ -1,0 +1,35 @@
+.network-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #E94560 0%, #c73650 100%);
+  color: #FFFFFF;
+  padding: 16rpx 32rpx;
+  padding-top: calc(16rpx + env(safe-area-inset-top));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  animation: slideDown 0.3s ease;
+  box-shadow: 0 4rpx 16rpx rgba(233, 69, 96, 0.3);
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.banner-icon {
+  margin-right: 12rpx;
+  font-size: 28rpx;
+}
+
+.banner-text {
+  font-size: 26rpx;
+  font-weight: 500;
+}

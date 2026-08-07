@@ -28,7 +28,9 @@ Page({
     filteredHistory: [],
     showHistory: false,
     activeBarIndex: -1,
-    scrollToBarId: ''
+    scrollToBarId: '',
+    popupBar: null,
+    showBarPopup: false
   },
 
   onLoad: function () {
@@ -516,13 +518,54 @@ Page({
       return;
     }
     // 点击marker时，微信小程序会自动显示callout
-    // 同步高亮列表中对应的酒吧
     const marker = this.data.markers.find(m => m.id === markerId);
-    if (marker && marker.barIndex !== undefined) {
-      this.setData({ 
-        activeBarIndex: marker.barIndex,
-        scrollToBarId: `bar-${marker.barIndex}`
-      });
+    if (!marker || marker.barIndex === undefined) return;
+
+    const { barIndex } = marker;
+    const { displayedCount, allBars } = this.data;
+
+    if (barIndex < displayedCount) {
+      // 场景A：在已展示列表中 → 直接滚动 + 高亮
+      this.scrollToBar(barIndex);
+    } else if (barIndex < 20) {
+      // 场景B：在 20 条内但未加载 → 扩展 displayBars 后滚动 + 高亮
+      const newCount = barIndex + 1;
+      this.setData({
+        displayBars: allBars.slice(0, newCount),
+        displayedCount: newCount
+      }, () => this.scrollToBar(barIndex));
+    } else {
+      // 场景C：超出 20 条上限 → 显示底部弹窗
+      const bar = allBars[barIndex];
+      if (bar) {
+        this.setData({ popupBar: bar, showBarPopup: true });
+      }
+    }
+  },
+
+  scrollToBar: function (barIndex) {
+    this.setData({
+      activeBarIndex: barIndex,
+      scrollToBarId: `bar-${barIndex}`
+    });
+    // 2 秒后取消高亮
+    if (this._highlightTimer) clearTimeout(this._highlightTimer);
+    this._highlightTimer = setTimeout(() => {
+      if (this.data.activeBarIndex === barIndex) {
+        this.setData({ activeBarIndex: -1 });
+      }
+    }, 2000);
+  },
+
+  hideBarPopup: function () {
+    this.setData({ showBarPopup: false });
+  },
+
+  goToDetailFromPopup: function () {
+    const bar = this.data.popupBar;
+    if (bar) {
+      this.setData({ showBarPopup: false });
+      wx.navigateTo({ url: `/pages/detail/detail?id=${bar.id}` });
     }
   },
 

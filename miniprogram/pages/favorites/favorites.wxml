@@ -1,4 +1,5 @@
 <view class="container">
+  <network-banner />
   <view class="header">
     <view class="stats">
       <text class="count">{{total}}</text>
@@ -6,7 +7,21 @@
     </view>
   </view>
 
-  <view wx:if="{{bars.length === 0}}" class="empty">
+  <!-- 骨架屏：加载中 -->
+  <view class="bar-list" wx:if="{{loading && bars.length === 0}}">
+    <view class="skeleton-list">
+      <view class="skeleton-card" wx:for="{{[1,2,3,4]}}" wx:key="*this">
+        <view class="skeleton-img shimmer"></view>
+        <view class="skeleton-info">
+          <view class="skeleton-line shimmer" style="width: 60%; height: 32rpx"></view>
+          <view class="skeleton-line shimmer" style="width: 80%; height: 24rpx"></view>
+          <view class="skeleton-line shimmer" style="width: 40%; height: 24rpx"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:elif="{{bars.length === 0}}" class="empty">
     <text class="empty-icon">🍺</text>
     <text class="empty-text">还没有收藏任何酒吧</text>
     <text class="empty-hint">快去发现附近的好酒吧吧</text>
@@ -46,10 +61,6 @@
         </view>
       </view>
     </view>
-  </view>
-
-  <view class="loading" wx:if="{{loading}}">
-    <text>加载中...</text>
   </view>
 
   <view class="list-bottom-tip" wx:if="{{!loading && bars.length > 0}}">— 已经收藏完啦~ —</view>

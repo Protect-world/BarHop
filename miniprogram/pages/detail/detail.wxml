@@ -1,4 +1,5 @@
 <view class="detail-container">
+  <network-banner />
   <view class="detail-header">
     <image 
       class="header-bg" 
@@ -19,6 +20,15 @@
 
   <scroll-view class="detail-scroll" scroll-y>
     <view class="detail-content">
+      <!-- 骨架屏：加载中 -->
+      <view class="skeleton-detail" wx:if="{{loading}}">
+        <view class="skeleton-rating-card shimmer"></view>
+        <view class="skeleton-info-card shimmer" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+        <view class="skeleton-photos">
+          <view class="skeleton-photo shimmer" wx:for="{{[1,2,3]}}" wx:key="*this"></view>
+        </view>
+      </view>
+      <block wx:else>
       <!-- 评分对比区域 -->
       <view class="rating-section">
         <view class="rating-comparison">
@@ -175,6 +185,7 @@
       </view>
 
       <view class="bottom-placeholder"></view>
+      </block>
     </view>
   </scroll-view>
 

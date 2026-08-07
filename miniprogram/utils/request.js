@@ -50,7 +50,8 @@ function request(options) {
     needAuth = true,
     retry = 2,
     timeout = config.TIMEOUT || 10000,
-    deduplicate = false
+    deduplicate = false,
+    silent = false
   } = options;
 
   const fullUrl = `${config.API_BASE_URL}${url}`;
@@ -113,7 +114,7 @@ function request(options) {
           },
           fail: (err) => {
             const duration = Date.now() - startTime;
-            
+
             // 重试逻辑
             if (retryCount < retry) {
               retryCount++;
@@ -121,7 +122,12 @@ function request(options) {
               console.log(`[Request] 重试 ${retryCount}/${retry}: ${fullUrl}`);
               setTimeout(doRequest, 1000 * retryCount);
             } else {
-              reject({ code: -1, message: '网络请求失败，请检查网络连接' });
+              const errorMsg = '网络请求失败，请检查网络连接';
+              if (!silent) {
+                const errorHandler = require('./errorHandler');
+                errorHandler.showErrorToast(errorMsg);
+              }
+              reject({ code: -1, message: errorMsg });
             }
           }
         });

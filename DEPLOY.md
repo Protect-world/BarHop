@@ -1,4 +1,4 @@
-# BarHop 部署文档（Linux 服务器完整版）
+﻿# BarHop 部署文档（Linux 服务器完整版）
 
 > 本文档详细说明如何将 BarHop 项目从零部署到上线，涵盖服务器选购、ICP 备案、Docker 部署、Nginx 反向代理、HTTPS 证书、微信小程序配置、审核发布等全流程。
 >
@@ -16,6 +16,9 @@
 - [六、运营和维护](#六运营和维护)
 - [七、执行路线图](#七执行路线图)
 - [八、费用总结](#八费用总结)
+- [九、宝塔面板部署方案（腾讯云镜像）](#九宝塔面板部署方案腾讯云镜像)
+- [十、API Key 申请指引](#十api-key-申请指引)
+- [十一、故障排查 FAQ](#十一故障排查-faq)
 
 ---
 
@@ -352,9 +355,26 @@ JWT_SECRET=用 node -e "console.log(require('crypto').randomBytes(64).toString('
 WECHAT_APPID=wxb83650bafb225674
 WECHAT_SECRET=你的微信小程序AppSecret（在mp.weixin.qq.com获取）
 
-# 腾讯地图 API（如果需要）
-TENCENT_MAP_KEY=你的腾讯地图Key
+# 腾讯地图 LBS Key（酒吧搜索主数据源，必填）
+# 申请地址：https://lbs.qq.com/dev/console/key/manage
+TENCENT_LBS_KEY=你的腾讯地图Key
+
+# 高德地图 Key（酒吧图片和评分补充，推荐配置）
+# 申请地址：https://console.amap.com/dev/key/app
+# 免费版 QPS=4，代码已实现 250ms 限流
+AMAP_KEY=你的高德地图Key
 ```
+
+**API Key 说明**：
+
+| API Key | 用途 | 是否必填 | 申请地址 |
+|---------|------|---------|---------|
+| `TENCENT_LBS_KEY` | 酒吧搜索主数据源（腾讯地图地点搜索） | ✅ 必填 | [lbs.qq.com](https://lbs.qq.com/dev/console/key/manage) |
+| `AMAP_KEY` | 酒吧照片和评分补充（高德 POI 详情） | ⚠️ 推荐 | [console.amap.com](https://console.amap.com/dev/key/app) |
+| `WECHAT_APPID` | 微信登录 | ✅ 必填 | [mp.weixin.qq.com](https://mp.weixin.qq.com) → 开发设置 |
+| `WECHAT_SECRET` | 微信登录 | ✅ 必填 | 同上（点击"重置"生成） |
+
+> ⚠️ **安全提示**：所有 API Key 只放在后端 `.env` 文件中，前端不暴露任何 Key。前端通过后端代理访问地图 API。
 
 #### 5.3 生成 JWT 密钥
 
@@ -368,10 +388,10 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 ### Step 6: 使用 Docker 部署后端服务
 
-#### 6.1 修改 docker-compose.prod.yml
+#### 6.1 修改 docker-compose.yml
 
 ```bash
-vim /opt/BarHop/docker-compose.prod.yml
+vim /opt/BarHop/docker-compose.yml
 ```
 
 **确认以下配置**：
@@ -381,44 +401,53 @@ vim /opt/BarHop/docker-compose.prod.yml
 # 检查端口映射
 ```
 
+> 📌 项目根目录的 `docker-compose.yml` 已配置好 MySQL 8.0 + Redis 7，并自动挂载 `database/schema.sql` 作为初始化脚本。
+
 #### 6.2 开始部署
 
 ```bash
 cd /opt/BarHop
 
 # 构建并启动所有服务
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose up -d --build
 
 # 查看服务状态
-docker compose -f docker-compose.prod.yml ps
+docker compose ps
 
 # 查看日志
-docker compose -f docker-compose.prod.yml logs -f
+docker compose logs -f
 ```
 
 #### 6.3 初始化数据库
 
+`database/schema.sql` 会通过 docker-compose 的 volume 挂载自动执行（`/docker-entrypoint-initdb.d/01-schema.sql`），无需手动导入。
+
+**如需手动操作**：
 ```bash
 # 进入 MySQL 容器
 docker exec -it barhop-mysql mysql -uroot -p
 
-# 输入 root 密码（在 docker-compose.prod.yml 中配置的）
+# 输入 root 密码（在 docker-compose.yml 中配置的 barhop_root）
 
-# 创建数据库和用户
+# 数据库和用户已由 docker-compose 自动创建，如需手动：
 CREATE DATABASE IF NOT EXISTS barhop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS 'barhop_user'@'%' IDENTIFIED BY '你的密码';
 GRANT ALL PRIVILEGES ON barhop.* TO 'barhop_user'@'%';
 FLUSH PRIVILEGES;
 
-# 导入数据（如果你有 SQL 文件）
+# schema.sql 已自动执行，如需重新导入：
 # exit
-# docker exec -i barhop-mysql mysql -u barhop_user -p barhop < /opt/BarHop/server/init.sql
+# docker exec -i barhop-mysql mysql -u barhop_user -p barhop < /opt/BarHop/database/schema.sql
 ```
 
 #### 6.4 验证服务
 
 ```bash
-# 测试 API
+# 健康检查（检查数据库连接）
+curl http://localhost:3000/health
+# 应该返回：{"code":0,"data":{"database":"connected","dbTest":1},"message":"BarHop Server is running"}
+
+# 测试酒吧搜索 API（需配置 TENCENT_LBS_KEY）
 curl http://localhost:3000/api/bars/nearby -X POST -H "Content-Type: application/json" -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
 
 # 应该返回：{"code":0,"data":[...]}
@@ -563,28 +592,31 @@ WECHAT_SECRET=你的AppSecret
 
 #### 10.1 修改 API 地址
 
-**修改**：`miniprogram/config/index.js`
+**修改**：`miniprogram/utils/config.js`
 
 ```javascript
 const config = {
-  // 生产环境配置
-  API_BASE_URL: 'https://你的域名.com',
-  UPLOAD_URL: 'https://你的域名.com/api/upload/image',
-  // ...其他配置
+  API_BASE_URL: 'https://你的域名.com',  // 改为你的域名
+  TIMEOUT: 60000,
+  // ...其他配置保持不变
 };
 ```
 
+> ⚠️ `API_BASE_URL` 不能带端口号（Nginx 已做反向代理到 3000），不能带末尾斜杠。
+
 #### 10.2 关闭调试模式
 
-**修改**：`miniprogram/app.js`
+**修改**：`miniprogram/project.config.json`
 
-```javascript
-// 确保没有开启 mock 模式
-globalData: {
-  useMock: false,  // 必须是 false
-  // ...
+```json
+{
+  "setting": {
+    "urlCheck": true  // 生产环境改为 true（校验合法域名）
+  }
 }
 ```
+
+> 📌 `miniprogram/app.js` 中没有 mock 模式开关，无需修改。登录失败时会自动 fallback 到 mock 用户，发布前请确保 `WECHAT_APPID` 和 `WECHAT_SECRET` 已正确配置在服务器 `.env` 中。
 
 #### 10.3 在开发者工具测试
 
@@ -625,7 +657,7 @@ curl -X POST https://你的域名.com/api/bars/nearby \
   -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
 
 # 检查服务器日志
-docker compose -f docker-compose.prod.yml logs --tail 100
+docker compose logs --tail 100
 
 # 检查 Nginx 日志
 sudo tail -f /var/log/nginx/access.log
@@ -700,18 +732,18 @@ sudo tail -f /var/log/nginx/error.log
 
 ```bash
 # 查看服务状态
-docker compose -f /opt/BarHop/docker-compose.prod.yml ps
+docker compose -f /opt/BarHop/docker-compose.yml ps
 
 # 查看日志
-docker compose -f /opt/BarHop/docker-compose.prod.yml logs -f --tail 200
+docker compose -f /opt/BarHop/docker-compose.yml logs -f --tail 200
 
 # 重启服务
-docker compose -f /opt/BarHop/docker-compose.prod.yml restart
+docker compose -f /opt/BarHop/docker-compose.yml restart
 
 # 更新代码
 cd /opt/BarHop
 git pull
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose up -d --build
 
 # 数据库备份
 docker exec barhop-mysql mysqldump -u barhop_user -p密码 barhop > /opt/barhop-backup-$(date +%Y%m%d).sql
@@ -724,10 +756,10 @@ docker exec -i barhop-mysql mysql -u barhop_user -p密码 barhop < /opt/barhop-b
 
 ```bash
 # 服务挂了？
-docker compose -f /opt/BarHop/docker-compose.prod.yml up -d
+docker compose -f /opt/BarHop/docker-compose.yml up -d
 
 # MySQL 挂了？
-docker compose -f /opt/BarHop/docker-compose.prod.yml restart mysql
+docker compose -f /opt/BarHop/docker-compose.yml restart mysql
 
 # 磁盘满了？
 df -h  # 查看磁盘使用
@@ -786,7 +818,7 @@ docker exec barhop-mysql mysqldump -u barhop_user -p密码 barhop > $BACKUP_DIR/
 tar -czf $BACKUP_DIR/uploads_$DATE.tar.gz /opt/BarHop/server/uploads/
 
 # 备份配置文件
-tar -czf $BACKUP_DIR/config_$DATE.tar.gz /opt/BarHop/.env /opt/BarHop/docker-compose.prod.yml
+tar -czf $BACKUP_DIR/config_$DATE.tar.gz /opt/BarHop/.env /opt/BarHop/docker-compose.yml
 
 # 删除7天前的备份
 find $BACKUP_DIR -name "*.sql" -mtime +7 -delete
@@ -846,11 +878,229 @@ sudo crontab -e
 | 域名 | ¥30-60 | 年 |
 | 微信小程序认证 | ¥0（个人）/ ¥300（企业）| 年 |
 | HTTPS 证书 | 免费 | - |
+| 腾讯地图 LBS API | 免费（个人开发者配额）| - |
+| 高德地图 API | 免费（4 QPS 限制）| - |
 | **月均总成本** | **¥65-85** | - |
+
+### API Key 计费说明
+
+**腾讯地图 LBS**：
+- 免费配额：个人开发者 10,000 次/日
+- 超出后：¥0.005/次
+- 本项目用量：约 100-500 次/日（远低于免费额度）
+
+**高德地图 API**：
+- 免费版：4 QPS（每秒 4 次请求）
+- 月配额：300,000 次
+- 本项目用量：约 50-200 次/日（远低于免费额度）
+- 代码已实现 250ms 限流 + QPS 超限重试机制（2s→4s→6s 递增等待）
 
 ---
 
-## 九、故障排查 FAQ
+## 九、宝塔面板部署方案（腾讯云镜像）
+
+> 如果你使用腾讯云服务器的"宝塔面板"镜像（而非纯 Ubuntu），可以用宝塔面板的可视化界面替代命令行部署。此方案与上面 Docker 方案二选一。
+
+### 9.1 宝塔面板初始化
+
+腾讯云镜像已预装宝塔面板，首次使用需获取登录信息：
+
+```bash
+# SSH 登录服务器后执行
+sudo /etc/init.d/bt default
+# 输出：
+# 面板地址: http://你的IP:8888/xxxx
+# 用户名: xxxxxx
+# 密码: xxxxxx
+```
+
+在浏览器打开面板地址登录，绑定宝塔官网账号。
+
+### 9.2 安装运行环境
+
+在宝塔面板 → **软件商店** → 搜索安装：
+
+| 软件 | 版本 | 用途 |
+|------|------|------|
+| **Nginx** | 1.24+ | 反向代理 + 静态资源 |
+| **MySQL** | 8.0 | 数据库 |
+| **Redis** | 7.x | 缓存 |
+| **PM2管理器** | 最新 | Node.js 进程管理 |
+| **Node.js** | 18.x | 后端运行时 |
+
+> ⚠️ **注意端口冲突**：宝塔 MySQL 默认 3306，Redis 默认 6379。**不要**再用 docker-compose 启动 MySQL/Redis，避免冲突。
+
+### 9.3 创建数据库
+
+宝塔面板 → **数据库** → **添加数据库**：
+
+| 字段 | 值 |
+|------|------|
+| 数据库名 | `barhop` |
+| 用户名 | `barhop_user` |
+| 密码 | 自定义强密码 |
+| 访问权限 | **所有人**（或指定 IP） |
+| 字符集 | `utf8mb4` |
+
+创建后，点击"导入" → 上传 `database/schema.sql` 并执行。
+
+### 9.4 部署后端代码
+
+```bash
+# SSH 登录，克隆代码
+cd /www/wwwroot
+git clone https://github.com/你的GitHub用户名/BarHop.git
+cd BarHop/server
+
+# 安装依赖
+npm install
+
+# 创建 .env（参考 Step 5.2）
+cp .env.example .env
+vim .env
+```
+
+**宝塔环境下的 .env 特殊配置**：
+```env
+# MySQL（宝塔本地安装，非 Docker）
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=barhop
+DB_USER=barhop_user
+DB_PASSWORD=宝塔创建数据库时设置的密码
+
+# Redis（宝塔本地安装）
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# 其他配置同 Step 5.2
+NODE_ENV=production
+PORT=3000
+SERVER_BASE_URL=https://你的域名.com
+# ... TENCENT_LBS_KEY / AMAP_KEY / WECHAT_APPID 等
+```
+
+### 9.5 用 PM2 启动 Node.js 服务
+
+宝塔面板 → **软件商店** → **PM2管理器** → **设置** → **添加项目**：
+
+| 字段 | 值 |
+|------|------|
+| 项目名称 | `barhop` |
+| 启动文件/运行目录 | `/www/wwwroot/BarHop/server` |
+| 启动选项 | `server.js` |
+| Node 版本 | `18.x` |
+
+或命令行操作：
+```bash
+cd /www/wwwroot/BarHop/server
+pm2 start server.js --name barhop
+pm2 save
+pm2 startup  # 开机自启
+```
+
+验证：`curl http://localhost:3000/health`
+
+### 9.6 配置 Nginx 反向代理（宝塔可视化）
+
+宝塔面板 → **网站** → **添加站点**：
+
+| 字段 | 值 |
+|------|------|
+| 域名 | `你的域名.com` |
+| 根目录 | `/www/wwwroot/BarHop/server`（用于静态文件） |
+| PHP版本 | 纯静态 |
+
+创建后点击站点 → **设置** → **配置文件**，在 `server` 块内添加：
+
+```nginx
+# API 反向代理
+location /api/ {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    client_max_body_size 10m;
+}
+
+# 健康检查
+location /health {
+    proxy_pass http://127.0.0.1:3000;
+}
+
+# 上传文件静态访问
+location /uploads/ {
+    alias /www/wwwroot/BarHop/server/uploads/;
+    expires 30d;
+}
+```
+
+### 9.7 申请 SSL 证书（宝塔可视化）
+
+宝塔面板 → 站点 → **设置** → **SSL** → **Let's Encrypt**：
+
+1. 勾选你的域名
+2. 点击"申请"
+3. 申请成功后开启"强制 HTTPS"
+
+> 📌 使用宝塔申请证书前，需先在腾讯云完成域名解析（A 记录指向服务器 IP），且 80 端口已开放。
+
+### 9.8 宝塔防火墙配置
+
+宝塔面板 → **安全** → 放行端口：
+
+| 端口 | 用途 |
+|------|------|
+| 80 | HTTP |
+| 443 | HTTPS |
+| 8888 | 宝塔面板（建议改默认端口） |
+
+> ⚠️ **不要**放行 3000、3306、6379 到公网，它们只在本机使用。
+
+---
+
+## 十、API Key 申请指引
+
+### 10.1 腾讯地图 LBS Key（必填）
+
+1. 访问 [腾讯位置服务](https://lbs.qq.com/)
+2. 注册/登录账号（建议用微信扫码）
+3. 控制台 → **应用管理** → **创建应用**
+4. 应用创建后点击"添加 Key"
+5. **Key 名称**：`BarHop`
+6. **启用产品**：勾选 `WebService API`（地点搜索）
+7. **域名白名单**：留空（后端调用无需）
+8. 创建后复制 Key，填入服务器 `.env` 的 `TENCENT_LBS_KEY`
+
+> 配额：个人开发者免费 10,000 次/日
+
+### 10.2 高德地图 Key（推荐）
+
+1. 访问 [高德开放平台](https://console.amap.com/)
+2. 注册/登录账号
+3. 控制台 → **应用管理** → **创建新应用**
+4. 应用创建后点击"添加 Key"
+5. **Key 名称**：`BarHop`
+6. **服务平台**：选择 `Web服务`
+7. 创建后复制 Key，填入服务器 `.env` 的 `AMAP_KEY`
+
+> 配额：免费版 4 QPS，月 300,000 次。代码已实现 250ms 限流。
+
+### 10.3 微信小程序凭证
+
+1. 访问 [微信公众平台](https://mp.weixin.qq.com/)
+2. 登录小程序账号
+3. **开发管理** → **开发设置**
+4. 复制 **AppID** → 填入 `.env` 的 `WECHAT_APPID`
+5. 点击 **AppSecret** 的"重置"按钮 → 生成后立即复制 → 填入 `.env` 的 `WECHAT_SECRET`
+
+> ⚠️ AppSecret 只在重置时显示一次，请立即保存。
+
+---
+
+## 十一、故障排查 FAQ
 
 ### Q1: 端口被占用？
 
@@ -867,15 +1117,15 @@ sudo kill -9 PID
 
 ```bash
 # 查看详细日志
-docker compose -f docker-compose.prod.yml logs app
-docker compose -f docker-compose.prod.yml logs mysql
+docker compose -f docker-compose.yml logs app
+docker compose -f docker-compose.yml logs mysql
 
 # 检查配置
-docker compose -f docker-compose.prod.yml config
+docker compose -f docker-compose.yml config
 
 # 重新构建
-docker compose -f docker-compose.prod.yml down
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml down
+docker compose -f docker-compose.yml up -d --build
 ```
 
 ### Q3: MySQL 连接失败？
@@ -931,36 +1181,36 @@ find /opt/backups -mtime +30 -delete
 
 ```bash
 # 实时查看所有服务日志
-docker compose -f docker-compose.prod.yml logs -f
+docker compose -f docker-compose.yml logs -f
 
 # 只看 app 日志
-docker compose -f docker-compose.prod.yml logs -f app
+docker compose -f docker-compose.yml logs -f app
 
 # 只看最近 100 行
-docker compose -f docker-compose.prod.yml logs --tail 100 app
+docker compose -f docker-compose.yml logs --tail 100 app
 ```
 
 ### Q8: 完全重置环境
 
 ```bash
 # 停止所有服务
-docker compose -f docker-compose.prod.yml down -v
+docker compose -f docker-compose.yml down -v
 
 # 删除所有镜像
 docker rmi $(docker images -q) -f
 
 # 重新部署
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml up -d --build
 ```
 
 ---
 
-## 十、性能优化建议
+## 十二、性能优化建议
 
 ### Docker 资源限制
 
 ```yaml
-# docker-compose.prod.yml
+# docker-compose.yml
 services:
   app:
     deploy:
@@ -1000,20 +1250,20 @@ NODE_OPTIONS=--max-old-space-size=512
 
 ---
 
-## 十一、常用命令速查表
+## 十三、常用命令速查表
 
 ```bash
 # === Docker ===
-docker compose -f docker-compose.prod.yml up -d --build   # 启动所有服务
-docker compose -f docker-compose.prod.yml ps               # 查看服务状态
-docker compose -f docker-compose.prod.yml logs -f         # 查看日志
-docker compose -f docker-compose.prod.yml restart         # 重启服务
-docker compose -f docker-compose.prod.yml down             # 停止服务
-docker compose -f docker-compose.prod.yml down -v         # 停止并删除数据卷
+docker compose up -d --build                                # 启动所有服务
+docker compose ps                                            # 查看服务状态
+docker compose logs -f                                       # 查看日志
+docker compose restart                                       # 重启服务
+docker compose down                                          # 停止服务
+docker compose -f docker-compose.yml down -v         # 停止并删除数据卷
 
 # === 代码更新 ===
 cd /opt/BarHop && git pull                                 # 拉取最新代码
-docker compose -f docker-compose.prod.yml up -d --build   # 重新构建并启动
+docker compose -f docker-compose.yml up -d --build   # 重新构建并启动
 
 # === 数据库 ===
 docker exec -it barhop-mysql mysql -u root -p              # 进入 MySQL

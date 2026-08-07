@@ -255,3 +255,57 @@
   font-size: 60rpx;
   opacity: 0.6;
 }
+
+/* ============ 骨架屏 ============ */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8rpx;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-list {
+  padding: 30rpx;
+}
+
+.skeleton-card {
+  display: flex;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 24rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.skeleton-img {
+  width: 220rpx;
+  height: 220rpx;
+  border-radius: 16rpx;
+  flex-shrink: 0;
+}
+
+.skeleton-info {
+  flex: 1;
+  padding-left: 24rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16rpx;
+}
+
+.skeleton-line {
+  border-radius: 8rpx;
+}

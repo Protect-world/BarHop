@@ -455,9 +455,9 @@ NODE_ENV=development
 | 9 | ~~Mock数据清除~~ | 移除mockService调用，使用真实LBS数据 | `bars.js`, `index.js` | ✅ | P0 |
 | 10 | ~~搜索筛选优化~~ | 多关键词组合搜索，放宽过滤条件 | `lbs.js` | ✅ | P0 |
 | 11 | ~~数据库重置~~ | 清空脏数据，重新拉取真实数据 | `bars.js`, `reset_data.js` | ✅ | P0 |
-| 12 | **真实用户评分聚合** | 详情页显示：高德评分 + 用户评分，并标注来源 | `detail.js`, `detail.wxml`, `reviews.js` | ⏳ | P0 |
-| 13 | **骨架屏加载** | 列表项加载时显示骨架占位动画 | `index.wxml/wxss`, `detail.wxml/wxss` | ⏳ | P0 |
-| 14 | **全局错误处理** | 统一错误捕获 + 友好提示 + 重试 | `app.js`, `request.js` | ⏳ | P0 |
+| 12 | ~~真实用户评分聚合~~ | 详情页显示：高德评分 + 用户评分，并标注来源 | `detail.js`, `detail.wxml`, `reviews.js` | ✅ | P0 |
+| 13 | ~~骨架屏加载~~ | 列表项加载时显示骨架占位动画 | `index.wxml/wxss`, `detail.wxml/wxss`, `favorites.wxml/wxss` | ✅ | P0 |
+| 14 | ~~全局错误处理~~ | 统一错误捕获 + 友好提示 + 重试 | `app.js`, `request.js`, `errorHandler.js`, `network-banner` 组件 | ✅ | P0 |
 
 ### 🟡 第二阶段：性能与稳定性（中优先级 - P1）
 

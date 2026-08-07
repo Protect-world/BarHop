@@ -1,4 +1,5 @@
 <view class="container">
+  <network-banner />
   <view class="bar-info">
     <image class="bar-image" src="{{barImage}}" mode="aspectFill" />
     <view class="bar-name">{{bar.name}}</view>

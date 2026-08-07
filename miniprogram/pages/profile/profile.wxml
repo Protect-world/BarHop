@@ -1,4 +1,5 @@
 <view class="profile-page">
+  <network-banner />
   <view class="avatar-section">
     <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
       <image class="avatar" src="{{avatar || '/images/home.png'}}" mode="aspectFill" />

@@ -12,6 +12,9 @@
     }
   },
   "requiredPrivateInfos": ["getLocation", "chooseLocation"],
+  "usingComponents": {
+    "network-banner": "/components/network-banner/network-banner"
+  },
   "window": {
     "navigationBarBackgroundColor": "#1A1A2E",
     "navigationBarTextStyle": "white",

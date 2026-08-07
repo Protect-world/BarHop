@@ -15,14 +15,66 @@ App({
     this.login().then(() => {
       this.notifyLoginListeners();
     });
+
+    this.initNetworkMonitor();
   },
+
+  onError: function (err) {
+    console.error('[App] 全局错误:', err);
+  },
+
+  onUnhandledRejection: function (res) {
+    console.error('[App] 未处理的 Promise 拒绝:', res.reason);
+  },
+
+  onPageNotFound: function () {
+    wx.switchTab({ url: '/pages/index/index' });
+  },
+
+  initNetworkMonitor: function () {
+    wx.getNetworkType({
+      success: (res) => {
+        this.globalData.networkType = res.networkType;
+        this.globalData.isConnected = res.networkType !== 'none';
+      }
+    });
+    wx.onNetworkStatusChange((res) => {
+      this.globalData.networkType = res.networkType;
+      this.globalData.isConnected = res.isConnected;
+      this.networkListeners.forEach(cb => {
+        try {
+          cb(res);
+        } catch (e) {
+          console.error('[App] 网络监听器错误:', e);
+        }
+      });
+    });
+  },
+
+  onNetworkChange: function (callback) {
+    this.networkListeners.push(callback);
+    // 立即返回当前状态
+    callback({
+      isConnected: this.globalData.isConnected,
+      networkType: this.globalData.networkType
+    });
+  },
+
+  offNetworkChange: function (callback) {
+    const idx = this.networkListeners.indexOf(callback);
+    if (idx > -1) this.networkListeners.splice(idx, 1);
+  },
+
+  networkListeners: [],
 
   globalData: {
     hasConfirmedAge: false,
     userLocation: null,
     token: '',
     userInfo: null,
-    loginListeners: []
+    loginListeners: [],
+    networkType: 'unknown',
+    isConnected: true
   },
 
   onLoginComplete: function(callback) {

@@ -1,0 +1,4 @@
+<view class="network-banner" wx:if="{{!isConnected}}">
+  <text class="banner-icon">⚠️</text>
+  <text class="banner-text">网络异常，请检查网络连接</text>
+</view>
