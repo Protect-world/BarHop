@@ -1,4 +1,4 @@
-﻿# BarHop 部署文档（Linux 服务器完整版）
+# BarHop 部署文档（Linux 服务器完整版）
 
 > 本文档详细说明如何将 BarHop 项目从零部署到上线，涵盖服务器选购、ICP 备案、Docker 部署、Nginx 反向代理、HTTPS 证书、微信小程序配置、审核发布等全流程。
 >
@@ -31,33 +31,40 @@
                                     │ HTTPS
                                     ▼
               ┌─────────────────────────────────────────────┐
-              │            云服务器（Linux）                │
-              │  ┌────────────────────────────────────────┐ │
-              │  │  Nginx (80/443) 反向代理 + 静态资源   │ │
-              │  └────────────────┬───────────────────────┘ │
-              │                   │ proxy_pass             │
-              │  ┌────────────────▼───────────────────────┐ │
-              │  │  Node.js Server (3000) Express API    │ │
-              │  └────┬──────────────────────┬────────────┘ │
-              │       │                      │              │
-              │  ┌────▼─────────┐   ┌────────▼─────────┐    │
-              │  │  MySQL 8.0   │   │   Redis 7        │    │
-              │  │  (3306)      │   │   (6379)         │    │
-              │  └──────────────┘   └──────────────────┘    │
+              │         云服务器（Ubuntu 22.04）            │
+              │                                             │
+              │  ┌───────────────────────────────────────┐  │
+              │  │  Nginx (宿主机, 80/443)              │  │
+              │  │  反向代理 + SSL + 静态资源            │  │
+              │  └────────────────┬──────────────────────┘  │
+              │                   │ proxy_pass :3000       │
+              │                   ▼                         │
+              │  ┌───────────────────────────────────────┐  │
+              │  │       Docker (barhop-network)         │  │
+              │  │  ┌──────────────────────────────────┐ │  │
+              │  │  │  app 容器 (Node.js 18, :3000)    │ │  │
+              │  │  └────┬──────────────────┬─────────┘ │  │
+              │  │       │                  │            │  │
+              │  │  ┌────▼────────┐  ┌─────▼─────────┐  │  │
+              │  │  │ mysql 容器   │  │ redis 容器    │  │  │
+              │  │  │ (MySQL 8.0)  │  │ (Redis 7)     │  │  │
+              │  │  │ :3306        │  │ :6379         │  │  │
+              │  │  └──────────────┘  └───────────────┘  │  │
+              │  └───────────────────────────────────────┘  │
               └─────────────────────────────────────────────┘
 ```
 
 **技术栈一览**：
 
-| 组件 | 版本 | 端口 | 说明 |
-|------|------|------|------|
-| Ubuntu Server | 22.04 LTS | - | 操作系统 |
-| Docker | 24+ | - | 容器运行时 |
-| Docker Compose | v2+ | - | 容器编排 |
-| Nginx | latest | 80, 443 | 反向代理、静态资源、SSL |
-| Node.js | 18 (Alpine) | 3000 | 后端 API 服务 |
-| MySQL | 8.0 | 3306 | 数据库 |
-| Redis | 7 | 6379 | 缓存 |
+| 组件 | 版本 | 端口 | 运行方式 | 说明 |
+|------|------|------|---------|------|
+| Ubuntu Server | 22.04 LTS | - | 宿主机 | 操作系统 |
+| Docker | 24+ | - | 宿主机 | 容器运行时 |
+| Docker Compose | v2+ | - | 宿主机 | 容器编排 |
+| Nginx | latest | 80, 443 | **宿主机** | 反向代理、SSL、静态资源 |
+| Node.js | 18 (Alpine) | 3000 | **Docker 容器** | 后端 API 服务 |
+| MySQL | 8.0 | 3306→3307 | **Docker 容器** | 数据库（3307 映射到宿主机）|
+| Redis | 7 | 6379 | **Docker 容器** | 缓存 |
 
 ### ⚠️ 微信小程序硬性要求
 
@@ -396,31 +403,60 @@ vim /opt/BarHop/docker-compose.yml
 
 **确认以下配置**：
 ```yaml
-# 检查 MySQL 密码是否和 .env 一致
-# 检查 Redis 密码是否和 .env 一致
-# 检查端口映射
+# docker-compose.yml 中三个服务：
+# 1. app    - Node.js 后端（基于 server/Dockerfile 构建）
+# 2. mysql  - MySQL 8.0（自动执行 database/schema.sql）
+# 3. redis  - Redis 7
+
+# 检查项：
+# - server/.env 已正确填写（app 容器通过 env_file 加载）
+# - app 容器的 DB_HOST 和 REDIS_HOST 已在 environment 中覆盖为容器服务名
+# - database/schema.sql 路径正确（./database/schema.sql）
 ```
 
-> 📌 项目根目录的 `docker-compose.yml` 已配置好 MySQL 8.0 + Redis 7，并自动挂载 `database/schema.sql` 作为初始化脚本。
+> 📌 `docker-compose.yml` 已配置好三个服务：Node.js 后端 + MySQL 8.0 + Redis 7。schema.sql 会通过 volume 挂载自动执行。**无需在宿主机安装 Node.js 或 PM2**，所有运行时都在容器中。
+
+> ⚠️ **修改 MySQL 密码时务必同步两处**：
+> 1. `docker-compose.yml` 中 mysql 服务的 `MYSQL_ROOT_PASSWORD` 和 `MYSQL_PASSWORD`
+> 2. `server/.env` 中的 `DB_PASSWORD`
+>
+> 两处必须一致，否则 app 容器连不上 MySQL。最简单做法：保持默认密码 `barhop_pass` 不改，或在根目录创建 `.env` 文件统一管理（docker-compose 会自动读取根目录 `.env`）。
 
 #### 6.2 开始部署
 
 ```bash
 cd /opt/BarHop
 
-# 构建并启动所有服务
+# 构建并启动所有服务（首次会构建 Node.js 镜像，可能需要 2-5 分钟）
 docker compose up -d --build
 
-# 查看服务状态
+# 查看服务状态（应显示 3 个容器均为 running/healthy）
 docker compose ps
 
-# 查看日志
+# 查看 app 日志（重点看是否有 "Server running on port 3000"）
+docker compose logs -f app
+
+# 查看所有服务日志
 docker compose logs -f
+```
+
+**预期输出**：
+```
+NAME             STATUS                   PORTS
+barhop-app       Up (healthy)             0.0.0.0:3000->3000/tcp
+barhop-mysql     Up (healthy)             0.0.0.0:3307->3306/tcp
+barhop-redis     Up (healthy)             0.0.0.0:6379->6379/tcp
 ```
 
 #### 6.3 初始化数据库
 
-`database/schema.sql` 会通过 docker-compose 的 volume 挂载自动执行（`/docker-entrypoint-initdb.d/01-schema.sql`），无需手动导入。
+`database/schema.sql` 会通过 docker-compose 的 volume 挂载自动执行（`/docker-entrypoint-initdb.d/01-schema.sql`），**无需手动导入**。
+
+> ⚠️ schema.sql 只在 MySQL 容器**首次启动**（数据卷为空时）执行。如果之前启动过又改了 schema.sql，需要先删除数据卷：
+> ```bash
+> docker compose down -v  # -v 会删除数据卷（谨慎！会清空数据）
+> docker compose up -d --build
+> ```
 
 **如需手动操作**：
 ```bash
@@ -452,6 +488,13 @@ curl http://localhost:3000/api/bars/nearby -X POST -H "Content-Type: application
 
 # 应该返回：{"code":0,"data":[...]}
 ```
+
+> 📌 **端口说明**：
+> - `3000` - Node.js 服务（仅本机，Nginx 会代理）
+> - `3307` - MySQL（宿主机映射到 3307，避免与本地 MySQL 冲突）
+> - `6379` - Redis
+>
+> 生产环境中 Nginx 部署在宿主机（不在 Docker 中），方便管理 SSL 证书和多站点。
 
 ---
 

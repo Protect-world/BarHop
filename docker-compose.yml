@@ -1,16 +1,45 @@
 version: '3.8'
 
 services:
+  # ===== Node.js 后端服务 =====
+  app:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: barhop-app
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./server/.env
+    # 覆盖 .env 中的数据库和 Redis 地址，让容器间通过服务名通信
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NODE_ENV: production
+    volumes:
+      - ./server/uploads:/app/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - barhop-network
+
+  # ===== MySQL 数据库 =====
   mysql:
     image: mysql:8.0
     container_name: barhop-mysql
     ports:
       - "3307:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: barhop_root
-      MYSQL_DATABASE: barhop
-      MYSQL_USER: barhop_user
-      MYSQL_PASSWORD: barhop_pass
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-barhop_root}
+      MYSQL_DATABASE: ${DB_NAME:-barhop}
+      MYSQL_USER: ${DB_USER:-barhop_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-barhop_pass}
       TZ: Asia/Shanghai
       MYSQL_INITDB_SKIP_TZINFO: 1
     volumes:
@@ -18,7 +47,16 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-character-set-client-handshake
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-barhop_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - barhop-network
 
+  # ===== Redis 缓存 =====
   redis:
     image: redis:7-alpine
     container_name: barhop-redis
@@ -28,7 +66,18 @@ services:
       - redis_data:/data
     restart: unless-stopped
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - barhop-network
 
 volumes:
   mysql_data:
   redis_data:
+
+networks:
+  barhop-network:
+    driver: bridge
