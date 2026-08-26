@@ -2,7 +2,7 @@ const app = getApp();
 const request = require('../../utils/request.js');
 const config = require('../../utils/config.js');
 
-const DEFAULT_BAR_IMAGE = 'https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cozy%20bar%20interior&image_size=square';
+const DEFAULT_BAR_IMAGE = '/images/默认图.png';
 
 Page({
   data: {
