@@ -175,7 +175,7 @@ ssh root@你的服务器IP
 ```
 
 #### 3.1 创建管理用户（安全最佳实践）
-
+ 可以参考我的deepseek的聊天记录 ！！！！！
 ```bash
 # 创建新用户
 adduser barhop
@@ -1332,3 +1332,375 @@ df -h                                                     # 磁盘使用
 free -h                                                    # 内存使用
 htop                                                       # 进程监控
 ```
+
+---
+
+## 十四、生产环境实际部署走查（宿主机 Nginx + PM2 方案）
+
+> 本章节记录 **barhop.asia** 真实上线过程中采用的方案。
+> 服务器：腾讯云轻量 2核4G Ubuntu 22.04 / IPv4 42.194.201.142 / 域名 barhop.asia（ICP+公安已备案）
+>
+> 与第三章"全 Docker 方案"的差异：
+> - Node.js 后端**不在 Docker 里构建**（Alpine 编译工具构建需 20+ 分钟），改为宿主机 PM2 直接跑
+> - Nginx **装在宿主机**（非 Docker 容器），方便 Certbot 自动续期证书 & 管理多站点
+> - MySQL / Redis 仍走 Docker（避免在宿主机手动配密码、字符集、自启）
+>
+> 选择此方案的原因：**Node.js 在 Alpine 镜像中 RUN apk add python3 make g++ 步骤极慢（18min+），改为宿主机 node+npm 几分钟即可完成。**
+
+### 14.1 架构概览
+
+```
+                ┌───────────────────────────────────────────┐
+                │        用户（微信小程序 / HTTPS 443）       │
+                └────────────────────┬──────────────────────┘
+                                     ▼
+           ┌─────────────────────────────────────────────────┐
+           │              Ubuntu 宿主机 (barhop.asia)         │
+           │                                                   │
+           │  Nginx (宿主机 apt install 安装, :80/:443)       │
+           │    - SSL 终止 (Let's Encrypt, /etc/letsencrypt)  │
+           │    - proxy_pass http://127.0.0.1:3000            │
+           │    - 静态资源 /opt/BarHop/server/uploads         │
+           └────────────────────┬──────────────────────────────┘
+                                │
+   ┌────────────────────────────┼──────────────────────────────┐
+   ▼                            ▼                              ▼
+ PM2 (宿主机)                Docker                        Docker
+ node:18 (nvm)            mysql:8.0                     redis:7-alpine
+ port :3000               port 3307->3306                port 6379
+ /opt/BarHop/server       数据卷 mysql_data               数据卷 redis_data
+ appid / secret           字符集 utf8mb4                 --requirepass barhop_redis
+   读取 .env 软链接         schema.sql 自动初始化
+```
+
+### 14.2 服务器规格与前置状态
+
+| 项目 | 实际值 |
+|------|--------|
+| 服务器 | 腾讯云轻量应用服务器 Ubuntu 22.04 |
+| 规格 | 2 核 4G 内存 / 50G SSD |
+| 内存 | 3.6 GiB / Swap 1.9 GiB（**轻量自带 Swap，无需重建**）|
+| Docker Engine | Docker v29.6.1（**镜像预装，无需 apt 安装**）|
+| Docker Compose | docker compose v2（plugin） |
+| 公网 IP | 42.194.201.142 |
+| 域名 | barhop.asia（ICP + 公安联网备案通过）|
+| DNS 解析 | A 记录 `@` / `www` → 42.194.201.142 |
+
+### 14.3 步骤一：基础安全 + 防火墙
+
+SSH 加固**暂未执行**（生产跑起来再做），当前仍使用 `ssh root@42.194.201.142`。
+
+```bash
+# UFW 放行必要端口（22 保留、2222 预留给加固、80/443 必须）
+apt update && apt install ufw -y
+ufw default deny incoming
+ufw default allow outgoing
+ufw allow 22/tcp
+ufw allow 2222/tcp
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable
+ufw status
+```
+
+> ⚠️ **两边都要开端口**：UFW + 腾讯云控制台「实例 → 防火墙」中都要加 80/443。
+
+### 14.4 步骤二：安装 Node.js 18 + PM2 + Nginx
+
+```bash
+# 1. nvm 装 Node.js 18
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 18
+nvm use 18
+node -v     # v18.x
+
+# 2. 全局 PM2 + 淘宝源加速
+npm config set registry https://registry.npmmirror.com
+npm install -g pm2
+
+# 3. 宿主机 Nginx（反向代理 + SSL）
+apt install nginx -y
+systemctl enable nginx
+systemctl start nginx
+```
+
+### 14.5 步骤三：克隆代码 + 配置 .env
+
+```bash
+cd /opt
+git clone https://github.com/<你的账号>/BarHop.git
+cd BarHop
+
+# 生成 JWT 密钥（用 openssl，不依赖 node）
+JWT_SECRET_VAL=$(openssl rand -hex 64)
+
+cat > /opt/BarHop/.env << EOF
+NODE_ENV=production
+PORT=3000
+SERVER_BASE_URL=https://barhop.asia
+
+# 注意：宿主机 server 访问 Docker mysql/redis 要用 127.0.0.1 + 映射端口
+DB_HOST=127.0.0.1
+DB_PORT=3307
+DB_NAME=barhop
+DB_USER=barhop_user
+DB_PASSWORD=barhop_pass
+
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=barhop_redis
+
+JWT_SECRET=${JWT_SECRET_VAL}
+
+# 微信公众平台 → 开发管理 → 开发设置
+WECHAT_APPID=wxb83650bafb225674
+WECHAT_SECRET=<重置后的AppSecret>
+
+# 腾讯地图 LBS：控制台 → 创建 WebService API Key
+TENCENT_LBS_KEY=<腾讯LBS Key>
+
+# 高德开放平台：新建应用 → 添加 Key → 服务平台必须是"Web服务"
+AMAP_KEY=<高德Web服务Key>
+EOF
+
+# 关键：server 目录也要能读到 .env（dotenv 从 cwd 往上找）
+ln -sf /opt/BarHop/.env /opt/BarHop/server/.env
+ls -la /opt/BarHop/server/.env   # 应该显示软链接指向 /opt/BarHop/.env
+```
+
+> 🚩 **血泪教训**：PM2 的 cwd 是 `/opt/BarHop/server`，如果这里没有 `.env`（或软链接），`require('dotenv').config()` 找不到文件，`WECHAT_APPID` 会是空字符串，后端返回 `"微信登录未配置"`。
+
+### 14.6 步骤四：启动 MySQL + Redis（Docker）
+
+```bash
+cd /opt/BarHop
+docker compose -f docker-compose.prod.yml up -d mysql redis
+sleep 10
+docker compose -f docker-compose.prod.yml ps
+# barhop-mysql   Up (healthy)  0.0.0.0:3307->3306/tcp
+# barhop-redis   Up (healthy)  0.0.0.0:6379->6379/tcp
+```
+
+schema.sql 通过 volume 挂载到 `/docker-entrypoint-initdb.d/01-schema.sql`，**容器首次启动自动执行**。
+
+### 14.7 步骤五：启动后端（PM2）
+
+```bash
+cd /opt/BarHop/server
+npm config set registry https://registry.npmmirror.com
+npm install
+mkdir -p uploads logs
+
+pm2 start server.js --name barhop-server
+pm2 save
+pm2 startup              # 按提示复制执行返回的命令（enable 开机自启）
+
+# 检查启动是否正常
+pm2 status
+#  barhop-server  online
+pm2 logs barhop-server --lines 30
+#  应出现：Server running on port 3000
+
+# 健康检查
+curl http://localhost:3000/health
+#  {"code":0,"message":"BarHop Server is running","data":{"database":"connected","dbTest":1}}
+```
+
+### 14.8 步骤六：Nginx 反向代理 + HTTPS
+
+#### 6.1 写 HTTP 站点配置
+
+```bash
+cat > /etc/nginx/sites-available/barhop << 'NGINXEOF'
+server {
+    listen 80;
+    server_name barhop.asia www.barhop.asia;
+
+    location ~ /\. {
+        deny all;
+    }
+
+    location /uploads/ {
+        alias /opt/BarHop/server/uploads/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header Access-Control-Allow-Origin *;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        client_max_body_size 50m;
+    }
+
+    location /health {
+        proxy_pass http://127.0.0.1:3000;
+        access_log off;
+    }
+
+    location / {
+        return 404 '{"code":-1,"message":"BarHop API Server"}';
+        add_header Content-Type application/json;
+    }
+}
+NGINXEOF
+
+# 启用 + 禁用默认
+ln -sf /etc/nginx/sites-available/barhop /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t
+systemctl restart nginx
+
+# 验证 HTTP
+curl http://barhop.asia/health
+```
+
+#### 6.2 申请 Let's Encrypt 免费证书（HTTPS）
+
+```bash
+apt install certbot python3-certbot-nginx -y
+
+# --nginx 模式：certbot 自动改 nginx 配置加 443 server 块
+certbot --nginx -d barhop.asia -d www.barhop.asia
+# 流程：输入邮箱 → A 同意 → N 不分享邮箱 → 2 强制 HTTPS
+
+# 验证 HTTPS
+curl https://barhop.asia/health
+curl -X POST https://barhop.asia/api/bars/nearby \
+  -H "Content-Type: application/json" \
+  -d '{"lat":30.5728,"lng":104.0668,"radius":5000}'
+
+# 自动续期 crontab（每月 1 号 3:00 检查）
+crontab -l 2>/dev/null | { cat; echo "0 3 1 * * certbot renew --quiet >> /var/log/letsencrypt/renew.log 2>&1"; } | crontab -
+crontab -l
+```
+
+### 14.9 步骤七：修复 schema 字段缺失
+
+真实运行中发现 **bars 表缺少后端 SQL 引用的字段**：
+- [favorites.js 查询](file:///e:/coding/selfCoding/BarHop/server/controllers/favorites.js#L80) 引用了 `b.user_rating, b.user_review_count`
+- 但 [schema.sql](file:///e:/coding/selfCoding/BarHop/database/schema.sql) 的 bars 建表语句没有这两列
+- 报错：`Unknown column 'b.user_rating' in 'field list'`
+
+```bash
+# 给 bars 表补齐字段
+docker exec -i barhop-mysql mysql -u barhop_user -pbarhop_pass barhop << 'SQL'
+ALTER TABLE bars ADD COLUMN user_rating DECIMAL(2,1) DEFAULT 0.0 COMMENT '用户评分';
+ALTER TABLE bars ADD COLUMN user_review_count INT DEFAULT 0 COMMENT '用户评价数';
+SQL
+
+# 验证
+docker exec barhop-mysql mysql -u barhop_user -pbarhop_pass barhop -e "SHOW COLUMNS FROM bars LIKE 'user_%';"
+```
+
+> ⚠️ 建议把这两条 ALTER 写进 schema.sql 末尾（下次新部署自动补齐）。
+
+### 14.10 步骤八：微信小程序前端配置
+
+1. **公众平台服务器域名**：[mp.weixin.qq.com](https://mp.weixin.qq.com) → 开发管理 → 开发设置 → 服务器域名
+   - request / uploadFile / downloadFile 全部填：`https://barhop.asia`
+   - 必须是 HTTPS、不能带端口、必须备案
+2. **本地代码修改**：
+   - `miniprogram/utils/config.js`：`API_BASE_URL = 'https://barhop.asia'`
+   - `miniprogram/project.config.json`：`"urlCheck": true`
+3. **开发者工具 → 详情 → 本地设置**：取消勾选"不校验合法域名"
+4. 重新编译，跑通 13 项功能测试
+
+### 14.11 日常运维速查（实际架构）
+
+```bash
+# 后端
+pm2 status                                     # 状态
+pm2 restart barhop-server                      # 重启
+pm2 logs barhop-server --lines 50              # 日志
+pm2 logs barhop-server --err                   # 错误日志
+
+# MySQL + Redis
+cd /opt/BarHop
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml restart mysql redis
+docker compose -f docker-compose.prod.yml logs -f mysql
+docker exec -it barhop-mysql mysql -u barhop_user -pbarhop_pass barhop
+docker exec -it barhop-redis redis-cli -a barhop_redis
+
+# Nginx
+nginx -t                                       # 改配置后先测语法
+systemctl restart nginx
+tail -n 100 /var/log/nginx/error.log
+
+# HTTPS 证书
+certbot certificates                           # 查有效期
+certbot renew                                  # 立即续期
+
+# 后端全栈重启（比如改了 .env）
+pm2 restart barhop-server
+# HTTPS 健康检查
+curl https://barhop.asia/health
+
+# 更新代码
+cd /opt/BarHop
+git pull
+cd server && npm install
+pm2 restart barhop-server
+```
+
+### 14.12 常见报错速查（已踩过的坑）
+
+| 报错 / 现象 | 根因 | 修复 |
+|------------|------|------|
+| `{"message":"微信登录未配置"}` | `/opt/BarHop/server/` 没有 `.env`，dotenv 读不到 `WECHAT_APPID` | `ln -sf /opt/BarHop/.env /opt/BarHop/server/.env` 再 `pm2 restart` |
+| 收藏接口报 `Unknown column 'b.user_rating'` | schema.sql 缺少 `user_rating`、`user_review_count` 字段 | `ALTER TABLE bars ADD COLUMN ...` |
+| 高德日志刷 `USERKEY_PLAT_NOMATCH` | 高德 Key 创建时服务平台选错了 | 删除重建，**服务平台必须选"Web服务"**；新 Key 等 5-10 分钟生效 |
+| `docker build` 在 `apk add python3 make g++` 卡 18 分钟 | Alpine apk 国内源慢 | 放弃 Docker 内建 Node，改用宿主机 PM2（本章方案）|
+| curl 命令 URL 加了反引号导致参数乱码 | shell 会把 `` `url` `` 当作命令替换执行 | URL 直接写或用单引号包起来，不要用反引号 |
+| 小程序开发者工具提示"不校验合法域名"才能跑 | 微信公众平台"服务器域名"没配或没生效 | 配 `https://barhop.asia`，等 2-5 分钟 |
+| wx.request 报 "invalid url not in domain list" | 同上 + urlCheck: true 强制校验 | 配服务器域名 / 临时勾选"不校验"测试 |
+
+---
+
+## 十五、新会话继承说明
+
+> 本项目第 1 次部署会话（共 ~50 轮）已完成以下里程碑。如开新会话，请告知助手从下列"当前状态"继续。
+
+### 当前状态（2026-08-27）
+
+- ✅ 服务器初始化：Docker 29.6.1 预装、UFW 放行 22/2222/80/443、Swap 1.9G
+- ✅ DNS：barhop.asia A 记录 @/www → 42.194.201.142
+- ✅ 后端服务（宿主机 PM2）：`barhop-server` online，HTTP/HTTPS health 正常
+- ✅ MySQL/Redis：Docker 容器 running（3307→3306 / 6379）
+- ✅ Nginx + HTTPS：宿主机 nginx + certbot 证书，自动续期 crontab 已配
+- ✅ 数据库 schema 修复：bars 表补齐 user_rating、user_review_count
+- ✅ 前端代码：config.js API_BASE_URL 改为 `https://barhop.asia`，project.config.json urlCheck=true
+- ⚠️ 高德 Key：已换新 Key（701064e2a...），如仍刷 USERKEY_PLAT_NOMATCH 则确认控制台服务平台是否"Web服务"并等待生效
+- ⚠️ 上传目录 owner：`/opt/BarHop/server/uploads` 当前 root:root，如出现图片上传报错执行 `chown -R www-data:www-data /opt/BarHop/server/uploads`
+- ⚠️ SSH 安全加固：暂未执行（当前仍 root 登录 22 端口）；建议稳定后做
+- ⚠️ 酒吧 seed 数据 photos：数据库中默认图片指向 Trae IDE 内部图床（用户手机无法访问）；建议换成本地默认图或真实 Amap/腾讯图
+
+### 建议继续推进的优先级
+
+1. 开发者工具跑通 13 项功能测试 → 修复图片破图（seed photos 换真实资源）
+2. 开发者工具上传体验版 → 真机验证（重点 wx.request 合法域名）
+3. 微信公众平台提交审核（类目：生活服务→餐饮）→ 发布
+4. 服务器加固：SSH 非默认端口 + 禁用 root 登录 + 密钥登录
+5. 数据库定时备份：crontab 每日 mysqldump
+
+### 项目绝对路径（给助手看）
+
+- 项目根：`e:\coding\selfCoding\BarHop`
+- 前端：`e:\coding\selfCoding\BarHop\miniprogram\`
+- 后端：`e:\coding\selfCoding\BarHop\server\`
+- Docker compose：`e:\coding\selfCoding\BarHop\docker-compose.prod.yml`
+- 部署文档：`e:\coding\selfCoding\BarHop\DEPLOY.md`
+- 命令速查：`e:\coding\selfCoding\BarHop\docs\COMMANDS.md`
+- 服务器后端实际目录：`/opt/BarHop/server`
+- 服务器 .env：`/opt/BarHop/.env`（/opt/BarHop/server/.env 是软链接）
+- Nginx 配置：`/etc/nginx/sites-available/barhop`
+- HTTPS 证书：`/etc/letsencrypt/live/barhop.asia/`
