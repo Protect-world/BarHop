@@ -2,6 +2,7 @@ const db = require('../utils/db');
 const cacheService = require('./cache');
 const urlService = require('../utils/url');
 const config = require('../config');
+const lbsService = require('./lbs');
 
 // Haversine距离计算
 function haversineDistance(lat1, lng1, lat2, lng2) {
@@ -216,6 +217,22 @@ const barService = {
     } catch (error) {
       console.error('[BarService] 数据库查询失败:', error);
       bars = [];
+    }
+
+    // 数据库无数据时，fallback 腾讯LBS实时搜索
+    if (bars.length === 0) {
+      console.log('[BarService] 数据库无数据，fallback 腾讯LBS搜索');
+      try {
+        bars = await lbsService.searchNearby(lat, lng, radius, keyword, type);
+        console.log(`[BarService] LBS返回 ${bars.length} 条数据`);
+        if (bars.length > 0) {
+          // 缓存LBS结果
+          await cacheService.set(cacheKey, bars, config.cache.ttl);
+          return { bars, fromCache: false };
+        }
+      } catch (error) {
+        console.error('[BarService] LBS fallback失败:', error.message);
+      }
     }
 
     // 处理数据补充
