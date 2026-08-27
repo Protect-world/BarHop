@@ -15,10 +15,10 @@ const validators = {
       'number.min': '经度范围错误',
       'number.max': '经度范围错误'
     }),
-    radius: Joi.number().min(100).max(50000).default(10000).messages({
+    radius: Joi.number().min(100).max(100000).default(10000).messages({
       'number.base': '搜索半径必须是数字',
       'number.min': '搜索半径最小100米',
-      'number.max': '搜索半径最大50000米'
+      'number.max': '搜索半径最大100000米'
     }),
     keyword: Joi.string().max(100).allow('').default(''),
     type: Joi.string().max(50).allow('').default(''),
