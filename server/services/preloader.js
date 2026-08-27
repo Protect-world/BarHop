@@ -1,6 +1,6 @@
 const cacheService = require('./cache');
-const lbsService = require('./lbs');
 const amapService = require('./amap');
+const { barService } = require('./bar');
 
 class PreloaderService {
   constructor() {
@@ -65,71 +65,63 @@ class PreloaderService {
     console.log(`[Preloader] 预加载 ${name} (${lat}, ${lng})`);
 
     const cacheKey = cacheService.generateKey(lat, lng, 10000, '', '');
-    
+
     // 检查是否已有缓存且未过期
     const existingCache = await cacheService.get(cacheKey);
     if (existingCache && existingCache.length > 0) {
-      console.log(`[Preloader] ${name} 已有缓存，跳过`);
+      console.log(`[Preloader] ${name} 已有缓存(${existingCache.length}条)，跳过`);
       return;
     }
 
-    // 调用 LBS 获取酒吧列表
-    const bars = await lbsService.searchNearby(lat, lng, 10000, '', '');
-    
-    if (bars.length === 0) {
-      console.log(`[Preloader] ${name} 无酒吧数据`);
+    // 调用 barService.searchBars（内含 数据库→腾讯LBS→高德 完整 fallback 链路）
+    // forceRefresh=true 跳过缓存读取，直接走搜索
+    const { bars } = await barService.searchBars({
+      lat, lng, radius: 10000, keyword: '', type: '', forceRefresh: true
+    });
+
+    if (!bars || bars.length === 0) {
+      console.log(`[Preloader] ${name} 无酒吧数据（腾讯LBS+高德均未命中）`);
       return;
     }
 
     console.log(`[Preloader] ${name} 获取到 ${bars.length} 条数据`);
 
-    // 串行获取 Amap 补充数据
-    for (const bar of bars) {
+    // 对缺少图片/评分的酒吧，串行调用 Amap 补详情（已经在 enrichBarsInBackground 异步跑了，这里串行再补一次让缓存更完整）
+    const needEnrich = bars.filter(bar => !bar.photos || bar.photos.length === 0 || !bar.avg_rating || bar.avg_rating === 0);
+    for (const bar of needEnrich) {
       try {
         const enriched = await amapService.enrichBar(bar.name);
-        
-        if (enriched.photos && enriched.photos.length > 0) {
-          bar.photos = enriched.photos;
-        }
-        if (enriched.rating && enriched.rating > 0) {
-          bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
-        }
-      } catch (error) {
-        // 忽略单个酒吧的失败
-      }
-      
-      // 避免请求过快
+        if (enriched.photos && enriched.photos.length > 0) bar.photos = enriched.photos;
+        if (enriched.rating && enriched.rating > 0) bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
+      } catch (_) { /* 单条失败不影响整体 */ }
       await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    // 缓存数据
-    await cacheService.set(cacheKey, bars, 60 * 60); // 缓存1小时
+    // 写入缓存（1 小时）
+    await cacheService.set(cacheKey, bars, 60 * 60);
     console.log(`[Preloader] ${name} 缓存完成`);
   }
 
   async preloadCustomLocation(lat, lng, radius = 10000) {
     try {
       const cacheKey = cacheService.generateKey(lat, lng, radius, '', '');
-      
-      const existingCache = await cacheService.get(cacheKey);
-      if (existingCache && existingCache.length > 0) {
-        return existingCache;
-      }
 
-      const bars = await lbsService.searchNearby(lat, lng, radius, '', '');
-      
+      const existingCache = await cacheService.get(cacheKey);
+      if (existingCache && existingCache.length > 0) return existingCache;
+
+      const { bars } = await barService.searchBars({
+        lat, lng, radius, keyword: '', type: '', forceRefresh: true
+      });
+
+      // 串行补图/评分（单条间隔 300ms，留足余量给 4QPS 限制）
       for (const bar of bars) {
         try {
-          const enriched = await amapService.enrichBar(bar.name);
-          if (enriched.photos && enriched.photos.length > 0) {
-            bar.photos = enriched.photos;
+          if (!bar.photos || bar.photos.length === 0 || !bar.avg_rating || bar.avg_rating === 0) {
+            const enriched = await amapService.enrichBar(bar.name);
+            if (enriched.photos && enriched.photos.length > 0) bar.photos = enriched.photos;
+            if (enriched.rating && enriched.rating > 0) bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
           }
-          if (enriched.rating && enriched.rating > 0) {
-            bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
-          }
-        } catch (error) {
-          // 忽略
-        }
+        } catch (_) {}
         await new Promise(resolve => setTimeout(resolve, 300));
       }
 

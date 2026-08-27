@@ -83,7 +83,7 @@
 .user-bar {
   display: flex;
   align-items: center;
-  padding: 24rpx 30rpx 16rpx;
+  padding: 16rpx 30rpx 10rpx;
   position: relative;
   z-index: 10;
 }
@@ -181,7 +181,7 @@
 
 .search-bar {
   position: relative;
-  padding: 20rpx;
+  padding: 12rpx 20rpx 16rpx;
 }
 
 .search-input-wrap {
@@ -322,14 +322,18 @@
 
 .category-filter {
   display: flex;
-  gap: 20rpx;
-  padding: 20rpx 30rpx;
+  gap: 16rpx;
+  padding: 12rpx 30rpx 16rpx;
   overflow-x: auto;
   white-space: nowrap;
 }
 
+.category-filter::-webkit-scrollbar {
+  display: none;
+}
+
 .filter-item {
-  padding: 18rpx 36rpx;
+  padding: 14rpx 32rpx;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
   border-radius: 36rpx;
   font-size: 26rpx;
@@ -350,7 +354,7 @@
 .map-container {
   position: relative;
   width: 100%;
-  height: 500rpx;
+  height: 300rpx;
 }
 
 .map {

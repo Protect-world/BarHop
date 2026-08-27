@@ -51,6 +51,42 @@ const barService = {
     }));
   },
 
+  // ★ 批量保存酒吧到数据库（高德/腾讯LBS fallback 结果入库）
+  // 用 INSERT IGNORE + 主键冲突跳过，避免重复入库
+  async saveBarsToDatabase(bars) {
+    if (!bars || bars.length === 0) return 0;
+    let saved = 0;
+    for (const bar of bars) {
+      try {
+        await db.query(
+          `INSERT IGNORE INTO bars (id, name, address, lat, lng, phone, hours, avg_rating, tags, category, photos, distance, source, comment_count)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            bar.id,
+            bar.name || '',
+            bar.address || '',
+            bar.lat,
+            bar.lng,
+            bar.phone || '',
+            bar.hours || '',
+            bar.avg_rating || 0,
+            bar.tags || '',
+            bar.category || '',
+            JSON.stringify(bar.photos || []),
+            bar.distance || 0,
+            bar.source || 'amap',
+            bar.comment_count || 0
+          ]
+        );
+        saved++;
+      } catch (e) {
+        // 主键冲突(已入库)或字段类型不匹配，跳过单条
+      }
+    }
+    console.log(`[BarService] 批量入库完成：${saved}/${bars.length} 条新酒吧`);
+    return saved;
+  },
+
   // 从高德API获取酒吧详情
   async enrichFromAmap(bar) {
     const amapService = require('./amap');
@@ -232,7 +268,6 @@ const barService = {
       }
 
       // 腾讯LBS返回空（超限、报错、真的没数据）→ 走高德 fallback
-      // 参考 Experience 870638：降级切换必须和业务同链路、同判定方式，这里都从后端HTTP走，判定依据是"真实返回bars为空"
       if (bars.length === 0) {
         console.log('[BarService] 腾讯LBS空结果，fallback 高德周边搜索');
         try {
@@ -240,9 +275,17 @@ const barService = {
           bars = amapService.transformPoisToBars(pois, lat, lng);
           console.log(`[BarService] 高德返回 ${pois.length} 条 POI，清洗后酒吧数据 ${bars.length} 条`);
 
-          // 把高德结果按类型过滤（和腾讯LBS的filterBarResults语义对齐）
+          // 高德 searchAround 已经用了类型关键词锚定，_isValidBar 已过滤噪声
+          // 这里不再做严格 b.tags===type 过滤，避免分类不准导致全被过滤掉
+          // 只做宽松匹配：tags 包含 type 关键词即可
           if (type && type !== '全部') {
-            bars = bars.filter(b => b.tags === type);
+            bars = bars.filter(b => b.tags === type || b.tags.includes(type.replace('吧', '')));
+            console.log(`[BarService] 类型过滤后剩余 ${bars.length} 条（type=${type}）`);
+          }
+
+          // ★ 关键修复：把高德 fallback 的酒吧批量入库，后续 getBarById / enrich UPDATE 才能找到
+          if (bars.length > 0) {
+            await this.saveBarsToDatabase(bars);
           }
         } catch (error) {
           console.error('[BarService] 高德 fallback失败:', error.message);
