@@ -21,7 +21,7 @@ const config = {
   
   MAP: {
     DEFAULT_CITY: '西安',
-    SEARCH_RADIUS: 100000,
+    SEARCH_RADIUS: 10000,
     MARKER_ICON: '/images/pin.png'
   },
   
