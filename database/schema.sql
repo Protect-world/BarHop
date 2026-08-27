@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS bars (
   comment_count INT DEFAULT 0 COMMENT '第三方(高德)评价数',
   user_rating DECIMAL(2,1) DEFAULT 0.0 COMMENT '用户评分(本小程序真实反馈)',
   user_review_count INT DEFAULT 0 COMMENT '用户评价数(本小程序真实反馈)',
-  tags VARCHAR(255) DEFAULT NULL COMMENT '分类标签，逗号分隔',
+  tags VARCHAR(255) DEFAULT NULL COMMENT '分类标签: 精酿吧/鸡尾酒吧/清吧',
+  category VARCHAR(100) DEFAULT NULL COMMENT '数据来源大类(如 体育休闲服务:娱乐场所:酒吧)',
   photos TEXT DEFAULT NULL COMMENT '照片URL，JSON数组',
   distance INT DEFAULT 0 COMMENT '距离(米)',
   source VARCHAR(20) NOT NULL DEFAULT 'lbs' COMMENT '数据来源: lbs/mock/manual',
@@ -22,17 +23,17 @@ CREATE TABLE IF NOT EXISTS bars (
   INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='酒吧表';
 
-INSERT IGNORE INTO bars (id, name, address, lat, lng, phone, hours, avg_rating, tags, photos, distance, source) VALUES
-('real_001', 'Chengdu Pub', 'No.15 Yulin Road, Wuhou District, Chengdu', 30.562854, 104.036782, '028-85561234', '19:00-02:00', 4.8, '清吧', '[]', 0, 'manual'),
-('real_002', 'Helens', 'No.88 Chunxi Road Pedestrian Street, Jinjiang District, Chengdu', 30.571283, 104.066285, '028-86661234', '17:00-04:00', 4.6, '清吧', '[]', 0, 'manual'),
-('real_003', 'Erma Pub', 'Jiuyanqiao Bar Street, Jinjiang District, Chengdu', 30.554628, 104.082163, '028-84441234', '18:00-03:00', 4.7, '清吧', '[]', 0, 'manual'),
-('real_004', 'Panda Craft Beer', 'No.288 Tianfu Third Street, High-tech Zone, Chengdu', 30.540682, 104.051782, '028-87771234', '16:00-02:00', 4.9, '精酿吧', '[]', 0, 'manual'),
-('real_005', 'The Tides', 'Tongzilin South Road, Wuhou District, Chengdu', 30.548621, 104.042736, '028-83331234', '18:30-02:30', 4.5, '鸡尾酒吧', '[]', 0, 'manual'),
-('real_006', 'Langqiao Bar', 'No.66 Binjiang Middle Road, Jinjiang District, Chengdu', 30.562183, 104.065728, '028-82221234', '17:00-04:00', 4.4, '鸡尾酒吧', '[]', 0, 'manual'),
-('real_007', 'COMMUNE', 'No.56 Jianshe Road, Chenghua District, Chengdu', 30.601283, 104.071282, '028-89991234', '15:00-04:00', 4.6, '精酿吧', '[]', 0, 'manual'),
-('real_008', 'SPACE', 'Kuanzhai Alley, Qingyang District, Chengdu', 30.579283, 104.036285, '028-81111234', '20:00-05:00', 4.3, '鸡尾酒吧', '[]', 0, 'manual'),
-('real_009', 'Doujiu Pub', 'Guangchang Road, Hongguang Town, Pidu District, Chengdu', 30.701283, 103.996285, '028-86664321', '18:00-02:00', 4.5, '清吧', '[]', 0, 'manual'),
-('real_010', '1903 Music Bar', 'Huayang Street, Shuangliu District, Chengdu', 30.511283, 104.056285, '028-85554321', '19:00-03:00', 4.4, '精酿吧', '[]', 0, 'manual');
+INSERT IGNORE INTO bars (id, name, address, lat, lng, phone, hours, avg_rating, tags, category, photos, distance, source) VALUES
+('real_001', 'Chengdu Pub', 'No.15 Yulin Road, Wuhou District, Chengdu', 30.562854, 104.036782, '028-85561234', '19:00-02:00', 4.8, '清吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_002', 'Helens', 'No.88 Chunxi Road Pedestrian Street, Jinjiang District, Chengdu', 30.571283, 104.066285, '028-86661234', '17:00-04:00', 4.6, '清吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_003', 'Erma Pub', 'Jiuyanqiao Bar Street, Jinjiang District, Chengdu', 30.554628, 104.082163, '028-84441234', '18:00-03:00', 4.7, '清吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_004', 'Panda Craft Beer', 'No.288 Tianfu Third Street, High-tech Zone, Chengdu', 30.540682, 104.051782, '028-87771234', '16:00-02:00', 4.9, '精酿吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_005', 'The Tides', 'Tongzilin South Road, Wuhou District, Chengdu', 30.548621, 104.042736, '028-83331234', '18:30-02:30', 4.5, '鸡尾酒吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_006', 'Langqiao Bar', 'No.66 Binjiang Middle Road, Jinjiang District, Chengdu', 30.562183, 104.065728, '028-82221234', '17:00-04:00', 4.4, '鸡尾酒吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_007', 'COMMUNE', 'No.56 Jianshe Road, Chenghua District, Chengdu', 30.601283, 104.071282, '028-89991234', '15:00-04:00', 4.6, '精酿吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_008', 'SPACE', 'Kuanzhai Alley, Qingyang District, Chengdu', 30.579283, 104.036285, '028-81111234', '20:00-05:00', 4.3, '鸡尾酒吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_009', 'Doujiu Pub', 'Guangchang Road, Hongguang Town, Pidu District, Chengdu', 30.701283, 103.996285, '028-86664321', '18:00-02:00', 4.5, '清吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual'),
+('real_010', '1903 Music Bar', 'Huayang Street, Shuangliu District, Chengdu', 30.511283, 104.056285, '028-85554321', '19:00-03:00', 4.4, '精酿吧', '体育休闲服务;娱乐场所;酒吧', '[]', 0, 'manual');
 
 CREATE TABLE IF NOT EXISTS bar_search_cache (
   id INT AUTO_INCREMENT PRIMARY KEY,

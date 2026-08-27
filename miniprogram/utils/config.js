@@ -20,8 +20,8 @@ const config = {
   SEARCH_HISTORY_MAX: 10,
   
   MAP: {
-    DEFAULT_CITY: '深圳',
-    SEARCH_RADIUS: 5000,
+    DEFAULT_CITY: '西安',
+    SEARCH_RADIUS: 100000,
     MARKER_ICON: '/images/pin.png'
   },
   

@@ -175,12 +175,9 @@ class AmapService {
   }
 
   generatePlaceholderImages(barName) {
-    const nameDesc = barName ? ` at ${encodeURIComponent(barName)}` : '';
-    return [
-      `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=cute%20cartoon%20beer%20mug%20with%20foam%20kawaii%20style%20colorful${nameDesc}&image_size=square`,
-      `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=adorable%20wine%20glass%20illustration%20cartoon%20style%20glowing%20neon${nameDesc}&image_size=square`,
-      `https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=funny%20cocktail%20drink%20cartoon%20umbrella%20decoration%20vibrant%20colors${nameDesc}&image_size=square`
-    ];
+    // 不输出任何外部占位图：前端 utils/image.js ensureBarPhotos 会 fallback 到小程序本地 /images/默认图.png
+    // 之前用的 Trae 内部图床 URL (trae-api-cn.mchost.guru) 用户手机无法访问，已禁用
+    return [];
   }
 }
 
