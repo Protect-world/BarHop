@@ -3,6 +3,7 @@ const cacheService = require('./cache');
 const urlService = require('../utils/url');
 const config = require('../config');
 const lbsService = require('./lbs');
+const amapService = require('./amap');
 
 // Haversine距离计算
 function haversineDistance(lat1, lng1, lat2, lng2) {
@@ -219,19 +220,40 @@ const barService = {
       bars = [];
     }
 
-    // 数据库无数据时，fallback 腾讯LBS实时搜索
+    // 数据库无数据时，fallback 腾讯LBS实时搜索；腾讯LBS失败/超限时，再 fallback 高德 周边搜索
     if (bars.length === 0) {
       console.log('[BarService] 数据库无数据，fallback 腾讯LBS搜索');
       try {
         bars = await lbsService.searchNearby(lat, lng, radius, keyword, type);
-        console.log(`[BarService] LBS返回 ${bars.length} 条数据`);
-        if (bars.length > 0) {
-          // 缓存LBS结果
-          await cacheService.set(cacheKey, bars, config.cache.ttl);
-          return { bars, fromCache: false };
-        }
+        console.log(`[BarService] 腾讯LBS返回 ${bars.length} 条数据`);
       } catch (error) {
-        console.error('[BarService] LBS fallback失败:', error.message);
+        console.error('[BarService] 腾讯LBS fallback失败:', error.message);
+        bars = [];
+      }
+
+      // 腾讯LBS返回空（超限、报错、真的没数据）→ 走高德 fallback
+      // 参考 Experience 870638：降级切换必须和业务同链路、同判定方式，这里都从后端HTTP走，判定依据是"真实返回bars为空"
+      if (bars.length === 0) {
+        console.log('[BarService] 腾讯LBS空结果，fallback 高德周边搜索');
+        try {
+          const pois = await amapService.searchAround(lat, lng, radius, keyword, type);
+          bars = amapService.transformPoisToBars(pois, lat, lng);
+          console.log(`[BarService] 高德返回 ${pois.length} 条 POI，清洗后酒吧数据 ${bars.length} 条`);
+
+          // 把高德结果按类型过滤（和腾讯LBS的filterBarResults语义对齐）
+          if (type && type !== '全部') {
+            bars = bars.filter(b => b.tags === type);
+          }
+        } catch (error) {
+          console.error('[BarService] 高德 fallback失败:', error.message);
+          bars = [];
+        }
+      }
+
+      // 有任一 fallback 结果就先缓存并返回（数据补图/评分由 enrichBarsInBackground 异步完成）
+      if (bars.length > 0) {
+        await cacheService.set(cacheKey, bars, config.cache.ttl);
+        return { bars, fromCache: false };
       }
     }
 
