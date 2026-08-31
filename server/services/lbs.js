@@ -18,6 +18,7 @@ class LbsService {
       // 策略：默认使用多个关键词搜索，然后本地去重和过滤
       if (keyword) {
         // 用户指定了关键词，直接搜索
+        // policy=1: 返回POI基础信息+分类+图片（默认 base 不返回 photo）
         const params = {
           key: this.key,
           keyword: keyword,
@@ -25,7 +26,8 @@ class LbsService {
           output: 'json',
           page_size: 20,
           page_index: 1,
-          orderby: '_distance'
+          orderby: '_distance',
+          policy: '1'
         };
 
         const response = await axios.get(`${TENCENT_LBS_BASE_URL}/search`, { params });
@@ -68,6 +70,7 @@ class LbsService {
     
     for (const kw of keywords) {
       try {
+        // policy=1: 返回POI基础信息+分类+图片（默认 base 不返回 photo）
         const params = {
           key: this.key,
           keyword: kw,
@@ -75,7 +78,8 @@ class LbsService {
           output: 'json',
           page_size: 20,
           page_index: 1,
-          orderby: '_distance'
+          orderby: '_distance',
+          policy: '1'
         };
 
         const response = await axios.get(`${TENCENT_LBS_BASE_URL}/search`, { params });

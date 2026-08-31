@@ -127,12 +127,18 @@ const barService = {
         // 分批处理，每批5个，批间隔1秒，避免QPS超限
         const BATCH_SIZE = 5;
         const BATCH_DELAY = 1000; // 批间隔毫秒数
+        const ENRICH_FAIL_COOLDOWN = 6 * 60 * 60; // 失败冷却 6 小时（秒）
 
         for (let i = 0; i < needEnrich.length; i += BATCH_SIZE) {
           const batch = needEnrich.slice(i, i + BATCH_SIZE);
 
           for (const bar of batch) {
             try {
+              // 检查失败冷却标记，避免对补图失败的酒吧无限重试耗光额度
+              const failKey = `enrich_fail:${bar.id}`;
+              const isCooling = await cacheService.get(failKey);
+              if (isCooling) continue;
+
               const enriched = await this.enrichFromAmap(bar);
               let updated = false;
 
@@ -151,6 +157,9 @@ const barService = {
                   [JSON.stringify(bar.photos || []), bar.avg_rating || 0, bar.id]
                 );
                 console.log(`[BarService] 数据补充完成: ${bar.name}`);
+              } else {
+                // 补不到图也补不到评分：写失败冷却，6 小时内不再重试
+                await cacheService.set(failKey, '1', ENRICH_FAIL_COOLDOWN);
               }
             } catch (err) {
               console.error(`[BarService] 补充失败: ${bar.name} - ${err.message}`);

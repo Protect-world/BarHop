@@ -4,7 +4,12 @@ const urlService = {
   // 将相对路径转为完整URL
   toFullUrl(relativePath) {
     if (!relativePath) return '';
-    if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    // 高德/腾讯地图返回的图片通常是 http://aos-cdn-image.amap.com/...
+    // 微信小程序要求图片必须是 HTTPS，强制升级
+    if (relativePath.startsWith('http://')) {
+      return 'https://' + relativePath.slice(7);
+    }
+    if (relativePath.startsWith('https://')) {
       return relativePath;
     }
     const baseUrl = config.server.baseUrl.replace(/\/$/, '');

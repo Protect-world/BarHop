@@ -2,17 +2,20 @@ const cacheService = require('./cache');
 const amapService = require('./amap');
 const { barService } = require('./bar');
 
+// 失败酒吧冷却时间（6小时），避免对补图失败的酒吧无限重试耗光额度
+const ENRICH_FAIL_COOLDOWN = 6 * 60 * 60; // 秒（Redis TTL）
+const ENRICH_FAIL_KEY_PREFIX = 'enrich_fail:';
+
 class PreloaderService {
   constructor() {
     this.isRunning = false;
-    this.interval = 10 * 60 * 1000; // 10分钟
+    // 6 小时一次：免费额度每天 3000 次，5 城市 × 6 关键词 × 4 次/天 = 120 次/天 LBS，留足余量
+    this.interval = 6 * 60 * 60 * 1000;
     this.preloadLocations = [
       { lat: 30.6571, lng: 104.0627, name: '成都天府广场' },
-      { lat: 30.5728, lng: 104.0668, name: '成都春熙路' },
-      { lat: 31.2304, lng: 121.4737, name: '上海外滩' },
-      { lat: 39.9042, lng: 116.4074, name: '北京王府井' },
-      { lat: 22.3193, lng: 114.1694, name: '香港中环' }
+      { lat: 30.5728, lng: 104.0668, name: '成都春熙路' }
     ];
+    this.timer = null;
   }
 
   async start() {
@@ -22,12 +25,14 @@ class PreloaderService {
     }
 
     this.isRunning = true;
-    console.log('[Preloader] 启动预加载服务');
+    console.log('[Preloader] 启动预加载服务（6小时周期，仅成都地区）');
 
-    // 立即执行一次
-    await this.preloadAllLocations();
+    // 启动后延迟 30 秒再执行第一次，避免与启动初始化争抢资源
+    setTimeout(async () => {
+      if (!this.isRunning) return;
+      await this.preloadAllLocations();
+    }, 30 * 1000);
 
-    // 设置定时任务
     this.timer = setInterval(async () => {
       if (!this.isRunning) return;
       await this.preloadAllLocations();
@@ -46,17 +51,17 @@ class PreloaderService {
   async preloadAllLocations() {
     console.log('[Preloader] ========== 开始预加载 ==========');
     const startTime = Date.now();
-    
+
     for (const location of this.preloadLocations) {
       try {
         await this.preloadLocation(location);
       } catch (error) {
         console.error(`[Preloader] 预加载 ${location.name} 失败:`, error.message);
       }
-      // 延迟 500ms 避免过于频繁
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 延迟 2s 避免过于频繁
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-    
+
     console.log(`[Preloader] ========== 预加载完成 (耗时: ${(Date.now() - startTime) / 1000}s) ==========`);
   }
 
@@ -66,7 +71,7 @@ class PreloaderService {
 
     const cacheKey = cacheService.generateKey(lat, lng, 10000, '', '');
 
-    // 检查是否已有缓存且未过期
+    // 缓存未过期则跳过
     const existingCache = await cacheService.get(cacheKey);
     if (existingCache && existingCache.length > 0) {
       console.log(`[Preloader] ${name} 已有缓存(${existingCache.length}条)，跳过`);
@@ -80,22 +85,40 @@ class PreloaderService {
     });
 
     if (!bars || bars.length === 0) {
-      console.log(`[Preloader] ${name} 无酒吧数据（腾讯LBS+高德均未命中）`);
+      console.log(`[Preloader] ${name} 无酒吧数据`);
       return;
     }
 
     console.log(`[Preloader] ${name} 获取到 ${bars.length} 条数据`);
 
-    // 对缺少图片/评分的酒吧，串行调用 Amap 补详情（已经在 enrichBarsInBackground 异步跑了，这里串行再补一次让缓存更完整）
-    const needEnrich = bars.filter(bar => !bar.photos || bar.photos.length === 0 || !bar.avg_rating || bar.avg_rating === 0);
+    // 对缺少图片/评分的酒吧补详情（带失败冷却，避免无限重试耗光额度）
+    const needEnrich = bars.filter(bar =>
+      (!bar.photos || bar.photos.length === 0 || !bar.avg_rating || bar.avg_rating === 0)
+    );
+    let enrichedCount = 0;
     for (const bar of needEnrich) {
+      // 检查失败冷却标记
+      const failKey = ENRICH_FAIL_KEY_PREFIX + bar.id;
+      const isCooling = await cacheService.get(failKey);
+      if (isCooling) continue;
+
       try {
         const enriched = await amapService.enrichBar(bar.name);
-        if (enriched.photos && enriched.photos.length > 0) bar.photos = enriched.photos;
-        if (enriched.rating && enriched.rating > 0) bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
+        if (enriched.photos && enriched.photos.length > 0) {
+          bar.photos = enriched.photos;
+          enrichedCount++;
+        }
+        if (enriched.rating && enriched.rating > 0) {
+          bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
+        }
+        // 补不到图也不立即重试：写失败冷却，6 小时后再试
+        if ((!enriched.photos || enriched.photos.length === 0) && (!enriched.rating || enriched.rating === 0)) {
+          await cacheService.set(failKey, '1', ENRICH_FAIL_COOLDOWN);
+        }
       } catch (_) { /* 单条失败不影响整体 */ }
       await new Promise(resolve => setTimeout(resolve, 300));
     }
+    console.log(`[Preloader] ${name} 补图成功 ${enrichedCount}/${needEnrich.length} 条`);
 
     // 写入缓存（1 小时）
     await cacheService.set(cacheKey, bars, 60 * 60);
@@ -117,9 +140,17 @@ class PreloaderService {
       for (const bar of bars) {
         try {
           if (!bar.photos || bar.photos.length === 0 || !bar.avg_rating || bar.avg_rating === 0) {
+            const failKey = ENRICH_FAIL_KEY_PREFIX + bar.id;
+            const isCooling = await cacheService.get(failKey);
+            if (isCooling) continue;
+
             const enriched = await amapService.enrichBar(bar.name);
             if (enriched.photos && enriched.photos.length > 0) bar.photos = enriched.photos;
             if (enriched.rating && enriched.rating > 0) bar.avg_rating = parseFloat(enriched.rating.toFixed(1));
+
+            if ((!enriched.photos || enriched.photos.length === 0) && (!enriched.rating || enriched.rating === 0)) {
+              await cacheService.set(failKey, '1', ENRICH_FAIL_COOLDOWN);
+            }
           }
         } catch (_) {}
         await new Promise(resolve => setTimeout(resolve, 300));

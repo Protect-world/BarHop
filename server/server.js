@@ -141,12 +141,14 @@ async function startServer() {
     console.log(`[Server] BarHop Server running on http://localhost:${config.port}`);
     console.log(`[Server] Environment: ${config.env}`);
     
-    // 启动预加载服务
-    if (config.env === 'production') {
-      preloaderService.start();
-    } else {
-      console.log('[Server] 开发环境，跳过预加载（可手动触发）');
-    }
+    // 预加载服务（已关闭：单人项目按需加载+10分钟缓存已足够，避免无谓消耗 LBS/Amap 额度）
+    // 如需恢复：把下面注释打开即可（建议同时把 preloader.js 的 preloadLocations 改为西安坐标）
+    // if (config.env === 'production') {
+    //   preloaderService.start();
+    // } else {
+    //   console.log('[Server] 开发环境，跳过预加载（可手动触发）');
+    // }
+    console.log('[Server] 预加载服务已关闭（按需加载模式）');
   });
 }
 
