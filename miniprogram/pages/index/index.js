@@ -30,7 +30,12 @@ Page({
     activeBarIndex: -1,
     scrollToBarId: '',
     popupBar: null,
-    showBarPopup: false
+    showBarPopup: false,
+    mapCollapsed: false
+  },
+
+  toggleMap: function () {
+    this.setData({ mapCollapsed: !this.data.mapCollapsed });
   },
 
   onLoad: function () {

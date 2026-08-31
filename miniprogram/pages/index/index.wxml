@@ -124,24 +124,30 @@
       </view>
 
       <!-- 地图 -->
-      <view class="map-container">
-        <map 
-          id="map"
-          class="map"
-          longitude="{{userLocationLongitude}}"
-          latitude="{{userLocationLatitude}}"
-          scale="13"
-          markers="{{markers}}"
-          bindmarkertap="onMarkerClick"
-          bindcallouttap="onCalloutTap"
-          show-location="{{false}}"
-          style="width: 100%; height: 300rpx;"
-        />
-        <view class="location-btn" bindtap="getUserLocation">
-          <text>📍</text>
+      <view class="map-section {{mapCollapsed ? 'collapsed' : ''}}">
+        <view class="map-wrap" wx:if="{{!mapCollapsed}}">
+          <map
+            id="map"
+            class="map"
+            longitude="{{userLocationLongitude}}"
+            latitude="{{userLocationLatitude}}"
+            scale="13"
+            markers="{{markers}}"
+            bindmarkertap="onMarkerClick"
+            bindcallouttap="onCalloutTap"
+            show-location="{{false}}"
+            style="width: 100%; height: 400rpx;"
+          />
+          <view class="location-btn" bindtap="getUserLocation">
+            <text>📍</text>
+          </view>
+          <view class="choose-location-btn" bindtap="chooseLocationManually">
+            <text>🗺️</text>
+          </view>
         </view>
-        <view class="choose-location-btn" bindtap="chooseLocationManually">
-          <text>🗺️</text>
+        <view class="map-handle" bindtap="toggleMap" hover-class="map-handle-hover">
+          <text class="handle-chevron">{{mapCollapsed ? '⌃' : '⌄'}}</text>
+          <view class="handle-pill"></view>
         </view>
       </view>
     </view>
