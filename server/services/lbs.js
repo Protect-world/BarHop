@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config');
+const monitor = require('./monitor'); // 额度监控（仅计数，不影响业务）
 
 const TENCENT_LBS_BASE_URL = 'https://apis.map.qq.com/ws/place/v1';
 
@@ -31,9 +32,10 @@ class LbsService {
         };
 
         const response = await axios.get(`${TENCENT_LBS_BASE_URL}/search`, { params });
-        
+        monitor.track('lbs', response.data.status !== 0);
+
         if (response.data.status !== 0) {
-          console.error('[LBS] 腾讯LBS返回错误:', response.data.message);
+          console.error('[LBS] 腾讯LBS返回错误:', response.data.status, response.data.message);
           return [];
         }
 
@@ -83,7 +85,8 @@ class LbsService {
         };
 
         const response = await axios.get(`${TENCENT_LBS_BASE_URL}/search`, { params });
-        
+        monitor.track('lbs', response.data.status !== 0);
+
         if (response.data.status === 0 && response.data.data) {
           for (const item of response.data.data) {
             // 去重：使用id或title+location组合
@@ -96,6 +99,7 @@ class LbsService {
         }
       } catch (err) {
         // 单个关键词失败不影响其他
+        monitor.track('lbs', true);
         console.warn(`[LBS] 关键词 "${kw}" 搜索失败:`, err.message);
       }
     }

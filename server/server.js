@@ -37,9 +37,35 @@ app.get('/health', async (req, res) => {
   try {
     const db = require('./utils/db');
     const result = await db.query('SELECT 1 as test');
+
+    // 附加检查（不影响原有 database 字段）：
+    const monitor = require('./services/monitor');
+    const memory = process.memoryUsage();
+
+    // Redis 连通性
+    let redisStatus = 'unknown';
+    try {
+      const cacheService = require('./services/cache');
+      await cacheService.set('health:ping', '1', 10);
+      const pong = await cacheService.get('health:ping');
+      redisStatus = pong === '1' ? 'connected' : 'abnormal';
+    } catch (_) {
+      redisStatus = 'disconnected';
+    }
+
     return response.success(res, {
       database: 'connected',
-      dbTest: result[0]?.test
+      dbTest: result[0]?.test,
+      redis: redisStatus,
+      apiQuota: {
+        lbs: { used: monitor.counters.lbs.total, failed: monitor.counters.lbs.fail, dailyLimit: monitor.quotas.lbs },
+        amap: { used: monitor.counters.amap.total, failed: monitor.counters.amap.fail, dailyLimit: monitor.quotas.amap }
+      },
+      process: {
+        uptimeHours: Math.round(process.uptime() / 36) / 100,
+        memoryMB: Math.round(memory.rss / 1024 / 1024),
+        nodeVersion: process.version
+      }
     }, 'BarHop Server is running');
   } catch (error) {
     return response.success(res, {

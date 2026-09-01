@@ -91,10 +91,18 @@ const barService = {
   async enrichFromAmap(bar) {
     const amapService = require('./amap');
     try {
-      const result = await amapService.getPoiDetail(bar.id);
+      let result = await amapService.getPoiDetail(bar.id);
+
+      // ★ bar.id 为腾讯LBS ID时，高德详情接口必然查不到 → 按名称搜索换高德 poi id 再查详情
       if (!result) {
-        return { photos: [], rating: 0, deepType: '' };
+        const fallback = await amapService.enrichBar(bar.name, '');
+        return {
+          photos: fallback.photos || [],
+          rating: fallback.rating || 0,
+          deepType: ''
+        };
       }
+
       return {
         photos: (result.photos || []).map(p => p.url),
         rating: parseFloat(result.biz_ext?.rating) || 0,
@@ -271,6 +279,11 @@ const barService = {
       try {
         bars = await lbsService.searchNearby(lat, lng, radius, keyword, type);
         console.log(`[BarService] 腾讯LBS返回 ${bars.length} 条数据`);
+
+        // ★ LBS 结果同样批量入库，否则详情页 getBarById 查库 404
+        if (bars.length > 0) {
+          await this.saveBarsToDatabase(bars);
+        }
       } catch (error) {
         console.error('[BarService] 腾讯LBS fallback失败:', error.message);
         bars = [];
@@ -302,8 +315,13 @@ const barService = {
         }
       }
 
-      // 有任一 fallback 结果就先缓存并返回（数据补图/评分由 enrichBarsInBackground 异步完成）
+      // 有任一 fallback 结果就先缓存并返回
       if (bars.length > 0) {
+        // ★ 缺图/缺评分的后台异步补齐（原代码此处提前 return，永远走不到下方补图逻辑）
+        const needEnrich = bars.filter(bar => !bar.photos || bar.photos.length === 0 || bar.avg_rating === 0);
+        if (needEnrich.length > 0) {
+          this.enrichBarsInBackground(needEnrich, cacheKey, lat, lng, radius, keyword, type);
+        }
         await cacheService.set(cacheKey, bars, config.cache.ttl);
         return { bars, fromCache: false };
       }

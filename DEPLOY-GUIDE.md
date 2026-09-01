@@ -140,13 +140,46 @@ tail -20 /var/log/nginx/error.log
 | 服务 | 免费额度 | 重置周期 | 付费方案 |
 |------|---------|---------|---------|
 | 腾讯 LBS | 1万次/日 | 每天 0 点 | 30元/1万次（云市场流量包） |
-| 高德 | 5000次/月 | 每月 1 号 | 30元/10万次/年（控制台购买） |
+| 高德 | 5000次/日 | 每天 0 点 | 控制台购买流量包 |
+
+> 高德为日额度：超限返回 `USER_DAILY_QUERY_OVER_LIMIT`（infocode 10044），次日自动恢复。
 
 ```bash
-# 估算今日调用量
+# 查看实时额度用量（推荐）
+curl -s http://127.0.0.1:3000/health | python3 -m json.tool | grep -A 5 apiQuota
+
+# 估算今日调用量（日志方式）
 pm2 logs barhop-server --lines 5000 --nostream | grep -c "LBS"
 pm2 logs barhop-server --lines 5000 --nostream | grep -c "Amap"
+
+# 阈值告警日志
+pm2 logs barhop-server --nostream | grep "Monitor"
 ```
+
+### 额度耗光自检
+
+症状：搜索酒吧返回空数组 `data: []`，日志显示 `腾讯LBS返回 0 条` + `高德返回 0 条 POI`。
+
+```bash
+# 1. 看健康检查里的 apiQuota 是否异常飙高
+curl -s http://127.0.0.1:3000/health | python3 -m json.tool
+
+# 2. 直接调两家 API 看原始返回（KEY 在 server/.env）
+grep -E "TENCENT_LBS_KEY|AMAP_KEY" /opt/BarHop/server/.env
+
+# 3. 腾讯 LBS 原始返回（替换 KEY）
+curl -s 'https://apis.map.qq.com/ws/place/v1/search?key=KEY&keyword=%E9%85%92%E5%90%A7&boundary=nearby(34.2654,108.9541,5000)&output=json&page_size=5&policy=1' | python3 -m json.tool
+# → status: 121 表示"此key每日调用量已达到上限"
+
+# 4. 高德原始返回（替换 KEY）
+curl -s 'https://restapi.amap.com/v3/place/around?key=KEY&location=108.9541,34.2654&radius=5000&keywords=%E9%85%92%E5%90%A7&offset=5&output=JSON&extensions=base' | python3 -m json.tool
+# → info: USER_DAILY_QUERY_OVER_LIMIT (infocode 10044) 表示日额度超限
+```
+
+结论对照：
+- 两家都报额度错 → 等次日 0 点重置（代码已有失败冷却保护，无需处理）
+- 一家正常一家超限 → 正常走 fallback，仅搜索质量下降
+- 都正常但业务返回空 → 检查过滤逻辑，把日志贴给开发排查
 
 ---
 

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const config = require('../config');
+const monitor = require('./monitor'); // 额度监控（仅计数，不影响业务）
 
 const AMAP_BASE_URL = 'https://restapi.amap.com/v3';
 
@@ -70,7 +71,8 @@ class AmapService {
         };
 
         const response = await axios.get(`${AMAP_BASE_URL}/place/text`, { params, timeout: 5000 });
-        
+        monitor.track('amap', response.data.status !== '1');
+
         if (response.data.status !== '1') {
           // 处理QPS超限错误
           if (response.data.info === 'CUQPS_HAS_EXCEEDED_THE_LIMIT') {
@@ -115,7 +117,8 @@ class AmapService {
         };
 
         const response = await axios.get(`${AMAP_BASE_URL}/place/detail`, { params, timeout: 5000 });
-        
+        monitor.track('amap', response.data.status !== '1');
+
         if (response.data.status !== '1') {
           if (response.data.info === 'CUQPS_HAS_EXCEEDED_THE_LIMIT') {
             // QPS超限，等待更长时间后重试
@@ -217,6 +220,7 @@ class AmapService {
         if (typeCode) params.types = typeCode;
 
         const response = await axios.get(`${AMAP_BASE_URL}/place/around`, { params, timeout: 6000 });
+        monitor.track('amap', response.data.status !== '1');
 
         if (response.data.status !== '1') {
           if (response.data.info === 'CUQPS_HAS_EXCEEDED_THE_LIMIT') {
