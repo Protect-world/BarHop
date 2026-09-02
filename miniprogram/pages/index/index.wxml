@@ -200,7 +200,7 @@
                 <text class="bar-tag">{{item.tags}}</text>
                 <text class="bar-rating" wx:if="{{item.display_rating}}">⭐ {{item.display_rating}}</text>
                 <text class="bar-rating bar-rating-none" wx:else>暂无评分</text>
-                <text class="bar-distance">{{item.distance}}m</text>
+                <text class="bar-distance">{{item.display_distance}}</text>
               </view>
             </view>
             <view class="bar-arrow">›</view>
