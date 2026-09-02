@@ -121,7 +121,13 @@
   font-size: 30rpx;
   font-weight: 600;
   height: 88rpx;
-  line-height: 88rpx;
+  /* 用 flex 居中替代 line-height，规避原生 button 默认 padding 造成的文字偏下 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  box-sizing: border-box;
   border-radius: 44rpx;
   border: none;
   box-shadow: 0 8rpx 24rpx rgba(233, 69, 96, 0.4);
@@ -148,7 +154,12 @@
   font-size: 30rpx;
   font-weight: 500;
   height: 88rpx;
-  line-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  box-sizing: border-box;
   border-radius: 44rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.15);
 }

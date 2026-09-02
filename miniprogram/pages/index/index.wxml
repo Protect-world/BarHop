@@ -259,7 +259,7 @@
         </view>
         <view class="popup-info-item">
           <text class="popup-info-icon">🚶</text>
-          <text class="popup-info-text">距您 {{popupBar.distance}}m</text>
+          <text class="popup-info-text">距您 {{popupBar.display_distance}}</text>
         </view>
         <view class="popup-info-item" wx:if="{{popupBar.tags}}">
           <text class="popup-info-icon">🏷️</text>

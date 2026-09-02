@@ -228,6 +228,8 @@ Page({
         } else {
           bar.display_rating = '';
         }
+        // 距离动态单位：>=1km 显示 km（保留1位小数），否则显示 m
+        bar.display_distance = this.formatDistance(bar.distance);
         return bar;
       });
       const sortedBars = this.sortBars(allBars, sortType);
@@ -637,10 +639,11 @@ Page({
   },
 
   formatDistance: function (distance) {
-    if (distance < 1000) {
-      return `${distance}m`;
+    const d = Math.round(Number(distance) || 0);
+    if (d < 1000) {
+      return `${d}m`;
     }
-    return `${(distance / 1000).toFixed(1)}km`;
+    return `${(d / 1000).toFixed(1)}km`;
   },
 
   _filterHistory: function (keyword, history) {
