@@ -333,5 +333,22 @@ Page({
       // 重新获取详情以更新用户评分
       this.fetchBarDetail(this.data.barId);
     }
+  },
+
+  // 分享（带上酒吧 id，好友点开直达该酒吧详情）
+  onShareAppMessage: function () {
+    const { bar, barId } = this.data;
+    return {
+      title: bar ? `推荐一家酒吧：${bar.name}` : 'BarHop · 发现你附近的宝藏酒吧',
+      path: `/pages/detail/detail?id=${barId}`
+    };
+  },
+
+  onShareTimeline: function () {
+    const { bar, barId } = this.data;
+    return {
+      title: bar ? `推荐一家酒吧：${bar.name}` : 'BarHop · 发现你附近的宝藏酒吧',
+      query: `id=${barId}`
+    };
   }
 });

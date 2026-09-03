@@ -1,5 +1,6 @@
 const app = getApp();
 const api = require('../../utils/request');
+const config = require('../../utils/config');
 
 Page({
   data: {
@@ -38,6 +39,13 @@ Page({
     this.setData({ avatar });
   },
 
+  // 头像是否为已上传到服务器的永久地址
+  // chooseAvatar 返回的是临时路径（http://tmp/xxx 或 wxfile://tmp_xxx），
+  // 重启小程序即失效，必须先上传换取服务器 URL 才能持久回显
+  _isServerUrl(url) {
+    return !!url && url.startsWith(config.API_BASE_URL);
+  },
+
   onNicknameInput(e) {
     const nickname = e.detail.value;
     this.setData({ nickname });
@@ -66,10 +74,20 @@ Page({
     this.setData({ loading: true });
     
     try {
-      console.log('[Profile] 保存用户信息:', { nickname, avatar, signature });
+      // ★ 临时头像必须先上传换成服务器永久 URL，否则存库的是 http://tmp/xxx，重启即失效
+      let finalAvatar = avatar;
+      if (finalAvatar && !this._isServerUrl(finalAvatar)) {
+        console.log('[Profile] 检测到临时头像，上传中...');
+        const uploaded = await api.uploadImage(finalAvatar);
+        finalAvatar = uploaded.url;
+        this.setData({ avatar: finalAvatar });
+        console.log('[Profile] 头像上传成功:', finalAvatar);
+      }
+
+      console.log('[Profile] 保存用户信息:', { nickname, avatar: finalAvatar, signature });
       const result = await api.put(`/api/users/${userInfo.id}`, {
         nickname: nickname.trim(),
-        avatar,
+        avatar: finalAvatar,
         signature: signature.trim()
       });
       console.log('[Profile] 保存结果:', result);
@@ -77,7 +95,7 @@ Page({
       const updatedUser = result.data || {
         ...userInfo,
         nickname: nickname.trim(),
-        avatar,
+        avatar: finalAvatar,
         signature: signature.trim()
       };
 

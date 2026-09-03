@@ -126,5 +126,19 @@ Page({
         this.setData({ bars });
       }
     }
+  },
+
+  // 分享
+  onShareAppMessage: function () {
+    return {
+      title: 'BarHop · 我的私藏酒吧清单',
+      path: '/pages/index/index'
+    };
+  },
+
+  onShareTimeline: function () {
+    return {
+      title: 'BarHop · 发现你附近的宝藏酒吧'
+    };
   }
 });

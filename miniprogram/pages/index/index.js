@@ -654,5 +654,20 @@ Page({
     return history.filter(item =>
       item.keyword.toLowerCase().includes(lowerKeyword)
     ).slice(0, 5);
+  },
+
+  // 分享（定义后右上角「转发」按钮自动点亮）
+  onShareAppMessage: function () {
+    return {
+      title: 'BarHop · 发现你附近的宝藏酒吧',
+      path: '/pages/index/index'
+    };
+  },
+
+  // 分享到朋友圈
+  onShareTimeline: function () {
+    return {
+      title: 'BarHop · 发现你附近的宝藏酒吧'
+    };
   }
 });

@@ -136,7 +136,7 @@
             bindmarkertap="onMarkerClick"
             bindcallouttap="onCalloutTap"
             show-location="{{false}}"
-            style="width: 100%; height: 400rpx;"
+            style="width: 100%; height: 400rpx; position: relative; left: 50rpx; top: 0rpx"
           />
           <view class="location-btn" bindtap="getUserLocation">
             <text>📍</text>

@@ -5,7 +5,7 @@
 }
 
 .header {
-  padding: 50rpx 30rpx 60rpx;
+  padding: 28rpx 30rpx 34rpx;
   background: linear-gradient(135deg, #E94560 0%, #c73650 100%);
   position: relative;
   overflow: hidden;
