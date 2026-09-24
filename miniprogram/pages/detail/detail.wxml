@@ -193,6 +193,9 @@
     <view class="footer-btn favorite {{isFavorite ? 'active' : ''}}" bindtap="toggleFavorite">
       <text>{{isFavorite ? '❤️' : '🤍'}}</text>
     </view>
+    <view class="footer-btn checkin {{checkedIn ? 'done' : ''}}" bindtap="onCheckin">
+      <text>{{checkedIn ? '✓ 已打卡' : '🍻 打卡'}}</text>
+    </view>
     <view class="footer-btn secondary" bindtap="goReview">✏️ 评价</view>
     <view class="footer-btn primary" bindtap="openLocation">📍 导航</view>
   </view>

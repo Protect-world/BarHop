@@ -1,0 +1,72 @@
+<view class="checkins-page">
+  <network-banner />
+
+  <!-- 头部统计 -->
+  <view class="stats-header">
+    <view class="stats-num">{{total}}</view>
+    <view class="stats-label">家酒吧留下足迹</view>
+    <view class="stats-slogan">🍻 理性饮酒，拒绝酒驾</view>
+  </view>
+
+  <!-- 加载中骨架 -->
+  <view class="skeleton-wrap" wx:if="{{loading && list.length === 0}}">
+    <view class="skeleton-item" wx:for="{{[1,2,3]}}" wx:key="*this">
+      <view class="skeleton-dot"></view>
+      <view class="skeleton-body">
+        <view class="skeleton-line w60"></view>
+        <view class="skeleton-line w40"></view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty" wx:if="{{!loading && list.length === 0}}">
+    <view class="empty-icon">🍺</view>
+    <view class="empty-text">还没有打卡记录</view>
+    <view class="empty-tip">去酒吧到店打卡，点亮你的微醺地图吧</view>
+    <button class="empty-btn" bindtap="goDiscover">去发现</button>
+  </view>
+
+  <!-- 时间轴列表 -->
+  <view class="timeline" wx:if="{{list.length > 0}}">
+    <view
+      class="tl-item"
+      wx:for="{{list}}"
+      wx:key="id"
+      bindtap="goBarDetail"
+      data-barid="{{item.bar_id}}"
+    >
+      <view class="tl-node">
+        <view class="tl-dot"></view>
+        <view class="tl-line" wx:if="{{index < list.length - 1}}"></view>
+      </view>
+      <view class="tl-card">
+        <view class="tl-top">
+          <text class="tl-name">{{item.bar_name}}</text>
+          <text class="tl-badge" wx:if="{{item.is_first}}">首站</text>
+        </view>
+        <view class="tl-time">🕐 {{item.last_checkin_at}}</view>
+        <view class="tl-content" wx:if="{{item.content}}">{{item.content}}</view>
+        <view class="tl-images" wx:if="{{item.images && item.images.length > 0}}">
+          <image
+            wx:for="{{item.images}}"
+            wx:for-item="img"
+            wx:key="*this"
+            src="{{img}}"
+            mode="aspectFill"
+            catchtap="previewImage"
+            data-urls="{{item.images}}"
+            data-current="{{img}}"
+          />
+        </view>
+        <view class="tl-meta">
+          <text class="tl-tag" wx:if="{{item.bar_tags}}">{{item.bar_tags}}</text>
+          <text class="tl-dist">到店 {{item.distance_meter}}m</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="load-more" wx:if="{{loadingMore}}">加载中...</view>
+    <view class="list-end" wx:if="{{noMore && list.length > 0}}">— 到底啦 —</view>
+  </view>
+</view>

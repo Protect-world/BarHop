@@ -774,25 +774,123 @@ Body: {"user_id":"test_user","bar_id":"real_007"}
 
 ---
 
-## 十三、下一步计划建议
+## 十三、迭代路线图（2026-09 更新）
 
-### 第一阶段（本周）
-1. ✅ 接入微信授权登录
-2. ✅ 配置高德地图Key
-3. ✅ 完善图片兜底机制
-4. ✅ 优化收藏删除交互
+> 产品主线：从「找酒吧的工具」进化为「有游戏化正反馈的酒鬼地图」。
+> "Bar Hop" 本意即一晚逐店串酒（Bar Crawl），串酒吧路线是长期核心玩法。
 
-### 第二阶段（下周）
-5. ✅ 完善评价系统
-6. ✅ 实现真实评分聚合
-7. ✅ 添加下拉刷新
+### 版本规划总览
 
-### 第三阶段（后续）
-8. ✅ 酒吧数据管理后台
-9. ✅ 社交功能
-10. ✅ 推送通知
+```
+v1.1  地基：到店打卡 MVP + 用户行为数据（当前迭代 🔨）
+v1.2  成就体系：徽章 + 等级称号 + 个人足迹地图（点亮）
+v1.3  社交裂变：好友打卡榜 + 打卡动态 + 成就分享卡片
+v2.0  核心玩法：微醺路线（官方/UGC Bar Crawl）+ 酒款集邮
+v2.x  运营商业化：酒吧活动、商家认领、好友约酒、多城市
+```
+
+### 各版本要点
+
+| 版本 | 核心内容 | 关键依赖 |
+|------|---------|---------|
+| v1.1 | 打卡（GPS围栏≤150m后端校验）、打卡记录页、详情页打卡状态 | 无（本迭代开始） |
+| v1.2 | 数量/品类/趣味徽章、等级（品酒新手→一城酒神）、足迹地图探索度、分享朋友圈 | v1.1 打卡数据 |
+| v1.3 | 好友周/月榜、打卡动态流、徽章分享卡片（canvas） | v1.2 成就数据 |
+| v2.0 | 官方路线（地理聚集策划）、路线进度、组队巡礼、UGC路线、酒头集邮 | v1.1 打卡 + 酒吧标签细化 |
+| v2.x | 活动/优惠、商家后台、约酒、扩城 | 用户量增长 |
+
+### 持续优化项（穿插各版本）
+- 营业时间（hours）数据补全 + 详情页"营业中/已打烊"实时状态
+- 酒吧纠错入口（用户上报已关店/信息有误）
+- 收藏分组、图片懒加载
+- 游戏化页面走小程序分包，控制主包体积
+- 合规：打卡页常驻"理性饮酒，拒绝酒驾"；不做诱导酗酒类成就
+
+### 合规红线（游戏化必须遵守）
+1. 年龄验证机制不可绕过，打卡同样受 18+ 限制
+2. 不出现鼓励过量饮酒的玩法（如"喝到断片"类成就）
+3. 深夜时段打卡给出休息提示
+4. 用户位置信息仅用于打卡校验，需明示授权
 
 ---
 
-*文档生成时间：2026-07-28*
+## 十四、v1.1 到店打卡 MVP 详细设计
+
+### 14.1 功能范围
+| # | 功能 | 说明 |
+|---|------|------|
+| 1 | 到店打卡 | 距酒吧 ≤150m 才能打卡；后端计算距离防作弊 |
+| 2 | 打卡随感 | 可选：一句话 + 最多3张照片（复用上传接口） |
+| 3 | 打卡状态 | 详情页/列表显示"已打卡"，重复打卡更新最近打卡时间 |
+| 4 | 打卡记录页 | 个人页入口进入，时间轴展示全部打卡 |
+| 5 | 用户打卡数 | users 表冗余 checkin_count，为 v1.2 成就做准备 |
+
+### 14.2 数据库设计（纯新增）
+
+```sql
+-- 打卡记录表
+CREATE TABLE checkins (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL,
+  bar_id VARCHAR(64) NOT NULL,
+  bar_name VARCHAR(128) NOT NULL DEFAULT '',      -- 冗余，列表展示免联查
+  content VARCHAR(255) NOT NULL DEFAULT '',        -- 一句话随感
+  images JSON NULL,                                -- 最多3张
+  lat DECIMAL(10,6) NOT NULL,                      -- 打卡时实际坐标（审计）
+  lng DECIMAL(10,6) NOT NULL,
+  distance_meter INT NOT NULL DEFAULT 0,           -- 与酒吧的距离（后端算）
+  is_first TINYINT(1) NOT NULL DEFAULT 0,          -- 是否该酒吧首打卡
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_user_bar (user_id, bar_id),        -- 一人一酒吧一条（重复打卡=更新）
+  KEY idx_user_time (user_id, created_at),
+  KEY idx_bar (bar_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- users 表冗余打卡数（v1.2 成就/等级直接读）
+ALTER TABLE users ADD COLUMN checkin_count INT NOT NULL DEFAULT 0;
+```
+
+设计取舍：
+- **唯一键 (user_id, bar_id)**：v1.1 采用"一人一店一条记录，重复打卡更新最近一次"策略，简单且满足"去过哪些店"的核心统计；v2.0 路线玩法需要逐次记录时再扩展流水表
+- 距离校验在后端：前端传用户坐标，后端用 Haversine 公式与酒吧坐标计算
+
+### 14.3 API 设计
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/checkins` | 创建/更新打卡 `{ user_id, bar_id, lat, lng, content?, images? }`；围栏不通过返回 code=-1 + 距离提示 |
+| GET | `/api/checkins/user/:userId` | 我的打卡列表（时间倒序，分页） |
+| GET | `/api/checkins/status?user_id=&bar_id=` | 单店打卡状态（详情页用） |
+| GET | `/api/checkins/stats/:userId` | 打卡统计（总数/品类数，为 v1.2 预留） |
+
+### 14.4 前端设计
+
+| 页面/组件 | 改动 |
+|-----------|------|
+| `pages/detail/` | 新增"🍻 打卡"按钮（底部操作栏）；点击取 `wx.getLocation(gcj02)` → 调 POST；已打卡显示状态与时间，可"再喝一次"更新随感 |
+| `pages/checkins/`（新） | 时间轴列表：日期 + 酒吧名 + 随感/照片；个人页入口 + tabbar 不加（保持两 tab 简洁） |
+| `pages/profile/` | 新增"我的打卡"入口行（显示打卡数） |
+
+交互细节：
+- 围栏外打卡：toast 提示"距离酒吧还有 xx 米，到店后再打卡吧"
+- 深夜（23:00-5:00）打卡：额外提示"微醺刚好，早点休息 🌙"
+- 打卡成功：轻震动 `wx.vibrateShort()` + toast
+
+### 14.5 实现步骤
+1. ✅ 数据库：schema.sql 追加 + 服务器手工执行建表
+2. ✅ 后端：services/checkin.js（Haversine + 业务）→ controllers/checkins.js → routes/checkins.js → server.js 挂载
+3. ✅ 前端：request.js 加 API → detail 页打卡按钮 → checkins 记录页 → profile 入口
+4. ✅ 部署：git push → 服务器 pull + 建表 + pm2 restart → 开发者工具验证
+
+### 14.6 风险与对策
+| 风险 | 对策 |
+|------|------|
+| 酒吧坐标本身不准（LBS 抓取误差） | 围栏 150m 已留余量；后续支持用户纠错坐标 |
+| 用户开虚拟定位 | v1.1 接受（工具属性阶段）；记录原始坐标留审计，量大再上 `wx.checkIsProxy` 等增强 |
+| 打卡照片占存储 | 复用现有 /api/upload（10MB 限制、3张上限） |
+
+---
+
+*文档生成时间：2026-07-28，最近更新：2026-09-24*
 *项目维护者：BarHop Team*

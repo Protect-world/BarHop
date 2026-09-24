@@ -10,6 +10,7 @@ const uploadRouter = require('./routes/upload');
 const usersRouter = require('./routes/users');
 const favoritesRouter = require('./routes/favorites');
 const reviewsRouter = require('./routes/reviews');
+const checkinsRouter = require('./routes/checkins');
 const preloaderService = require('./services/preloader');
 const path = require('path');
 const response = require('./utils/response');
@@ -31,6 +32,7 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/favorites', favoritesRouter);
 app.use('/api/reviews', reviewsRouter);
+app.use('/api/checkins', checkinsRouter);
 
 // 健康检查
 app.get('/health', async (req, res) => {

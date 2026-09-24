@@ -30,7 +30,10 @@ Page({
     dist2: 0,
     dist1: 0,
     myReview: null,
-    ratingSource: 'amap'
+    ratingSource: 'amap',
+    // 打卡状态
+    checkedIn: false,
+    lastCheckinAt: ''
   },
 
   onLoad: function (options) {
@@ -46,6 +49,7 @@ Page({
       this.fetchBarDetail(id);
       this.checkFavorite();
       this.loadReviews();
+      this.checkCheckinStatus();
     }
   },
 
@@ -330,8 +334,95 @@ Page({
     if (this.data.barId) {
       this.checkFavorite();
       this.loadReviews();
+      this.checkCheckinStatus();
       // 重新获取详情以更新用户评分
       this.fetchBarDetail(this.data.barId);
+    }
+  },
+
+  // ============ 到店打卡 ============
+  checkCheckinStatus: function () {
+    const { user_id, barId } = this.data;
+    if (!user_id || !barId) return;
+    api.getCheckinStatus(user_id, barId).then(res => {
+      if (res.code === 0 && res.data) {
+        this.setData({
+          checkedIn: !!res.data.checked_in,
+          lastCheckinAt: res.data.last_checkin_at || ''
+        });
+      }
+    }).catch(err => {
+      console.error('[Detail] 检查打卡状态失败:', err);
+    });
+  },
+
+  onCheckin: function () {
+    const { user_id, barId, checkedIn } = this.data;
+    if (!user_id) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    const tip = checkedIn
+      ? '再次打卡将更新最近打卡时间，并补充一句随感？'
+      : '确认到店打卡？需要位于酒吧附近（150米内）';
+
+    wx.showModal({
+      title: checkedIn ? '再喝一次 🍻' : '到店打卡 🍻',
+      content: tip,
+      confirmText: checkedIn ? '更新' : '打卡',
+      cancelText: '取消',
+      success: (r) => {
+        if (r.confirm) this.doCheckin();
+      }
+    });
+  },
+
+  doCheckin: function () {
+    const { user_id, barId } = this.data;
+    wx.showLoading({ title: '定位中...', mask: true });
+    wx.getLocation({
+      type: 'gcj02',
+      success: (loc) => {
+        wx.showLoading({ title: '打卡中...', mask: true });
+        api.createCheckin({
+          user_id,
+          bar_id: barId,
+          lat: loc.latitude,
+          lng: loc.longitude
+        }).then(res => {
+          wx.hideLoading();
+          if (res.code === 0) {
+            wx.vibrateShort({ type: 'medium' });
+            this.setData({
+              checkedIn: true,
+              lastCheckinAt: (res.data && (res.data.updated_at || res.data.last_checkin_at)) || ''
+            });
+            wx.showToast({ title: res.message || '打卡成功', icon: 'success' });
+            this.maybeNightTip();
+          } else {
+            wx.showToast({ title: res.message || '打卡失败', icon: 'none', duration: 2500 });
+          }
+        }).catch(err => {
+          wx.hideLoading();
+          console.error('[Detail] 打卡失败:', err);
+          wx.showToast({ title: (err && err.message) || '打卡失败', icon: 'none' });
+        });
+      },
+      fail: () => {
+        wx.hideLoading();
+        wx.showToast({ title: '定位失败，请检查位置权限', icon: 'none' });
+      }
+    });
+  },
+
+  // 深夜打卡温馨提示（合规：不诱导酗酒）
+  maybeNightTip: function () {
+    const hour = new Date().getHours();
+    if (hour >= 23 || hour < 5) {
+      setTimeout(() => {
+        wx.showToast({ title: '微醺刚好，早点休息 🌙', icon: 'none', duration: 2000 });
+      }, 1200);
     }
   },
 

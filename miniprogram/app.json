@@ -4,7 +4,8 @@
     "pages/detail/detail",
     "pages/favorites/favorites",
     "pages/review/review",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/checkins/checkins"
   ],
   "permission": {
     "scope.userLocation": {

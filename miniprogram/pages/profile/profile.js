@@ -9,6 +9,7 @@ Page({
     avatar: '',
     signature: '',
     loading: false,
+    checkinCount: 0,
     originalData: null
   },
 
@@ -27,6 +28,7 @@ Page({
         }
       });
       console.log('[Profile] 用户信息加载成功:', userInfo);
+      this.loadCheckinCount();
     } else {
       console.warn('[Profile] 未获取到用户信息');
       wx.showToast({ title: '请先登录', icon: 'none' });
@@ -60,6 +62,20 @@ Page({
     const signature = e.detail.value;
     this.setData({ signature });
     console.log('[Profile] 签名输入:', signature);
+  },
+
+  goCheckins() {
+    wx.navigateTo({ url: '/pages/checkins/checkins' });
+  },
+
+  loadCheckinCount() {
+    const { userInfo } = this.data;
+    if (!userInfo || !userInfo.id) return;
+    api.getUserCheckins(userInfo.id, { page: 1, pageSize: 1 }).then(res => {
+      if (res.code === 0) {
+        this.setData({ checkinCount: res.data.total || 0 });
+      }
+    }).catch(() => {});
   },
 
   async onSave() {

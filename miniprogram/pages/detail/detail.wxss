@@ -315,6 +315,20 @@
   color: #FF6B8B;
 }
 
+.footer-btn.checkin {
+  flex: 0.9;
+  font-size: 26rpx;
+  background: rgba(233, 69, 96, 0.12);
+  color: #FF8A9B;
+  border: 1rpx solid rgba(233, 69, 96, 0.35);
+}
+
+.footer-btn.checkin.done {
+  background: linear-gradient(135deg, rgba(46, 204, 113, 0.18), rgba(46, 204, 113, 0.1));
+  color: #7DE8A8;
+  border: 1rpx solid rgba(46, 204, 113, 0.4);
+}
+
 /* 滚动容器 */
 .detail-scroll {
   height: calc(100vh - 520rpx - 140rpx);

@@ -80,3 +80,25 @@ CREATE TABLE IF NOT EXISTS reviews (
   INDEX idx_rating (rating),
   INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='评价表';
+
+-- v1.1 到店打卡表（一人一店一条，重复打卡更新最近一次）
+CREATE TABLE IF NOT EXISTS checkins (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL COMMENT '用户ID',
+  bar_id VARCHAR(36) NOT NULL COMMENT '酒吧ID',
+  bar_name VARCHAR(128) NOT NULL DEFAULT '' COMMENT '酒吧名冗余',
+  content VARCHAR(255) NOT NULL DEFAULT '' COMMENT '一句话随感',
+  images TEXT DEFAULT NULL COMMENT '图片JSON数组（最多3张）',
+  lat DECIMAL(10,6) NOT NULL COMMENT '打卡时用户纬度',
+  lng DECIMAL(10,6) NOT NULL COMMENT '打卡时用户经度',
+  distance_meter INT NOT NULL DEFAULT 0 COMMENT '与酒吧距离(米,后端计算)',
+  is_first TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否该酒吧首打卡',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '首次打卡时间',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最近打卡时间',
+  UNIQUE KEY uk_user_bar (user_id, bar_id),
+  INDEX idx_user_time (user_id, updated_at),
+  INDEX idx_bar_id (bar_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='到店打卡表';
+
+-- users 表冗余打卡数（v1.2 成就/等级直接读）
+ALTER TABLE users ADD COLUMN checkin_count INT NOT NULL DEFAULT 0 COMMENT '打卡酒吧数';

@@ -291,6 +291,27 @@ const api = {
     });
   },
 
+  // 打卡相关
+  async createCheckin(data) {
+    // data: { user_id, bar_id, lat, lng, content?, images? }
+    return request({ url: '/api/checkins', method: 'POST', data });
+  },
+
+  async getUserCheckins(userId, params) {
+    const qs = Object.entries(params || {})
+      .filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    return request({ url: `/api/checkins/user/${userId}${qs ? '?' + qs : ''}`, method: 'GET' });
+  },
+
+  async getCheckinStatus(userId, barId) {
+    return request({
+      url: `/api/checkins/status?user_id=${encodeURIComponent(userId)}&bar_id=${encodeURIComponent(barId)}`,
+      method: 'GET'
+    });
+  },
+
   // 图片上传
   async uploadImage(filePath) {
     return new Promise((resolve, reject) => {
