@@ -485,9 +485,26 @@ Page({
     wx.navigateTo({ url: '/pages/profile/profile' });
   },
 
-  onChooseAvatar: function (e) {
+  async onChooseAvatar(e) {
     if (!e.detail.avatarUrl) return;
-    const avatar = e.detail.avatarUrl;
+    let avatar = e.detail.avatarUrl;
+
+    // ★ chooseAvatar 返回的是临时路径（http://tmp/xxx 或 wxfile://tmp_xxx），
+    // 重启小程序即失效，必须先上传换取服务器永久 URL 再入库
+    if (avatar.indexOf('tmp') !== -1 || avatar.startsWith('wxfile://')) {
+      try {
+        wx.showLoading({ title: '上传中', mask: true });
+        const uploaded = await api.uploadImage(avatar);
+        avatar = uploaded.url;
+        wx.hideLoading();
+      } catch (err) {
+        wx.hideLoading();
+        console.error('[Index] 头像上传失败:', err);
+        wx.showToast({ title: '头像上传失败，请重试', icon: 'none' });
+        return;
+      }
+    }
+
     const userInfo = { ...this.data.userInfo, avatar };
     this.setData({ userInfo });
     app.updateUserInfo({ avatar });

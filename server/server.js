@@ -41,6 +41,7 @@ app.get('/health', async (req, res) => {
     // 附加检查（不影响原有 database 字段）：
     const monitor = require('./services/monitor');
     const memory = process.memoryUsage();
+    const quotaStats = monitor.getStats();
 
     // Redis 连通性
     let redisStatus = 'unknown';
@@ -58,8 +59,9 @@ app.get('/health', async (req, res) => {
       dbTest: result[0]?.test,
       redis: redisStatus,
       apiQuota: {
-        lbs: { used: monitor.counters.lbs.total, failed: monitor.counters.lbs.fail, dailyLimit: monitor.quotas.lbs },
-        amap: { used: monitor.counters.amap.total, failed: monitor.counters.amap.fail, dailyLimit: monitor.quotas.amap }
+        date: quotaStats.date,
+        lbs: { used: quotaStats.lbs.total, failed: quotaStats.lbs.fail, dailyLimit: quotaStats.lbs.quota, usedPercent: quotaStats.lbs.usedPercent },
+        amap: { used: quotaStats.amap.total, failed: quotaStats.amap.fail, dailyLimit: quotaStats.amap.quota, usedPercent: quotaStats.amap.usedPercent }
       },
       process: {
         uptimeHours: Math.round(process.uptime() / 36) / 100,

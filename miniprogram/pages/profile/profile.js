@@ -39,11 +39,15 @@ Page({
     this.setData({ avatar });
   },
 
-  // 头像是否为已上传到服务器的永久地址
+  // 头像是否为可长期使用的地址（服务器 URL 或站内相对路径）
   // chooseAvatar 返回的是临时路径（http://tmp/xxx 或 wxfile://tmp_xxx），
   // 重启小程序即失效，必须先上传换取服务器 URL 才能持久回显
-  _isServerUrl(url) {
-    return !!url && url.startsWith(config.API_BASE_URL);
+  _isPersistentUrl(url) {
+    if (!url) return false;
+    if (url.startsWith('/uploads/')) return true;
+    // 临时文件特征：tmp 路径 / wxfile 协议，一律视为需要重新上传
+    if (url.indexOf('tmp') !== -1 || url.startsWith('wxfile://')) return false;
+    return url.startsWith('http://') || url.startsWith('https://');
   },
 
   onNicknameInput(e) {
@@ -76,8 +80,8 @@ Page({
     try {
       // ★ 临时头像必须先上传换成服务器永久 URL，否则存库的是 http://tmp/xxx，重启即失效
       let finalAvatar = avatar;
-      if (finalAvatar && !this._isServerUrl(finalAvatar)) {
-        console.log('[Profile] 检测到临时头像，上传中...');
+      if (finalAvatar && !this._isPersistentUrl(finalAvatar)) {
+        console.log('[Profile] 检测到临时头像，上传中...', finalAvatar);
         const uploaded = await api.uploadImage(finalAvatar);
         finalAvatar = uploaded.url;
         this.setData({ avatar: finalAvatar });
